@@ -25,7 +25,7 @@ A LEGO-like synchronization primitives library for Rust.
 
 ## Installation
 
-Add `resync` to your dependencies:
+Add Resync to your dependencies:
 
 ```shell
 cargo add resync
@@ -35,19 +35,21 @@ To use in a `#![no_std]` environment (e.g., embedded systems or kernels), disabl
 
 ```toml
 [dependencies]
-resync = { version = "0.1.0", default-features = false }
+resync = { version = "...", default-features = false }
 ```
 
 ## Usage
 
 ### Basic Mutex
-The `Mutex` primitive is generic over the data it protects (`T`), the lock implementation (`L`), and the spin strategy (`S`). By default, it uses an `Atomic` lock and an OS-yielding spin (or `Busy` spin in `no_std`).
+The `Mutex` primitive is generic over the data it protects (`T`), the lock implementation (`L`), and
+the spin strategy (`S`). By default, it uses an `Atomic` lock and an OS-yielding spin
+(or `Busy` spin in `no_std`).
 
 ```rust
 use resync::Mutex;
 
 fn main() {
-    let mutex = Mutex::new(42u32);
+    let mutex = Mutex::<u32>::new(42);
 
     {
         // Acquire the lock. 
@@ -60,7 +62,8 @@ fn main() {
 ```
 
 ### Customizing Lock and Spin Strategies
-You can swap out the underlying lock and spin implementations at compile time. For example, you can force the mutex to use a busy-wait spin loop instead of yielding to the OS thread scheduler.
+You can swap out the underlying lock and spin implementations at compile time. For example,
+you can force the mutex to use a busy-wait spin loop instead of yielding to the OS thread scheduler.
 
 ```rust
 use resync::Mutex;
@@ -92,7 +95,9 @@ lock.free();
 ```
 
 ### Composite Locks (Deadlock Prevention)
-The `Nested` lock allows you to compose two locks together. It always acquires the first lock (`L1`) before the second (`L2`), and releases them in reverse order (`L2` then `L1`). This deterministic ordering helps prevent deadlocks when multiple locks are required.
+The `Nested` lock allows you to compose two locks together. It always acquires the first lock (`L1`)
+before the second (`L2`), and releases them in reverse order (`L2` then `L1`). This deterministic
+ordering helps prevent deadlocks when multiple locks are required.
 
 ```rust
 use resync::lock::{Atomic, Nested, ILock};
@@ -109,7 +114,9 @@ if lock.try_lock() == LockResult::Done {
 
 ## Extensibility
 
-Because `resync` relies on traits (`ILock` and `ISpin`), you can implement your own lock or spin strategies (e.g., ticket locks, exponential backoff spins, or hardware-specific pause instructions) and plug them directly into the `Mutex`.
+Because `resync` relies on traits (`ILock` and `ISpin`), you can implement your own lock or
+spin strategies (e.g., ticket locks, exponential backoff spins, or hardware-specific pause
+instructions) and plug them directly into the `Mutex`.
 
 ```rust
 use resync::{ISpin, SpinResult};
@@ -128,11 +135,10 @@ impl ISpin for ExponentialBackoffSpin {
 
 - **`std`** *(enabled by default)*: Enables OS-based spinning (`spin::Os`), which calls `std::thread::yield_now()`. 
 - **`no_std`**: If disabled, the crate becomes `#![no_std]` and the default spin strategy falls back to `spin::Busy` (which issues `core::hint::spin_loop()`).
-- **Nightly Rust**: If compiled with a nightly `rustc`, `resync` automatically detects the channel and enables `const` trait implementations and `const` defaults for better compile-time evaluation.
 
 ## Minimum Supported Rust Version (MSRV)
 
-`resync` is continuously tested against the latest **stable**, **beta**, and **nightly** Rust channels. While it works perfectly on stable, using a nightly compiler will unlock advanced `const` trait implementations for zero-cost abstractions.
+Resync is continuously tested against the latest **stable**, **beta**, and **nightly** Rust channels.
 
 ## License
 

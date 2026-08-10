@@ -19,16 +19,6 @@ use crate::{ISpin, SpinResult};
 #[allow(missing_debug_implementations)]
 pub struct Busy;
 
-#[cfg(nightly)]
-const impl core::default::Default for Busy
-{
-    fn default() -> Self
-    {
-        Self
-    }
-}
-
-#[cfg(not(nightly))]
 impl core::default::Default for Busy
 {
     fn default() -> Self

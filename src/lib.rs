@@ -7,17 +7,7 @@
 //!
 //! # Features
 //! - `std` (enabled by default): enables OS‑based spinning ([`spin::Os`]).
-//! - Nightly features: const traits and const [`core::default::Default`]
-//!   implementations when the `nightly` rustc channel is detected.
 
-#![cfg_attr(nightly,
-    feature(
-        // nightly features
-        const_trait_impl,
-        const_default,
-    )
-)]
-#![cfg_attr(all(test, nightly), feature(derive_const))]
 // don't link to libstd if `std` feature disabled
 #![cfg_attr(not(feature = "std"), no_std)]
 

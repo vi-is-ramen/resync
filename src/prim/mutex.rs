@@ -148,7 +148,7 @@ mod tests
     use crate::{ILock, ISpin};
 
     // A mock lock that always returns Abort.
-    #[derive_const(Default)]
+    #[derive(Default)]
     struct AbortLock;
     impl ILock for AbortLock
     {
@@ -160,7 +160,7 @@ mod tests
     }
 
     // A mock spin that aborts on first call (returns Abort).
-    #[derive_const(Default)]
+    #[derive(Default)]
     struct AbortSpin;
     impl ISpin for AbortSpin
     {
@@ -229,7 +229,7 @@ mod tests
         // Use a spin that aborts, but lock must fail repeatedly to trigger
         // spin. We need a lock that returns Fail, not Done, to go into
         // spin loop.
-        #[derive_const(Default)]
+        #[derive(Default)]
         struct FailLock;
         impl ILock for FailLock
         {

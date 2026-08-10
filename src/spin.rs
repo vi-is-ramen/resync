@@ -8,12 +8,15 @@ pub use busy::*;
 #[cfg(feature = "std")]
 pub use os::*;
 
-#[cfg(feature = "std")]
 /// Default spin strategy for current environment,
 /// selected by Resync. It's yielding with `std`
 /// feature and busy-waiting without `std` feature.
+#[cfg(feature = "std")]
 pub type DefaultSpin = Os;
 
+/// Default spin strategy for current environment,
+/// selected by Resync. It's yielding with `std`
+/// feature and busy-waiting without `std` feature.
 #[cfg(not(feature = "std"))]
 pub type DefaultSpin = Busy;
 
@@ -31,20 +34,8 @@ use crate::SpinResult;
 ///
 /// # Panics
 /// Implementations should not panic.
-#[cfg(nightly)]
 pub trait ISpin
-where Self: const core::default::Default
-{
-    /// Perform one spin iteration.
-    ///
-    /// # Returns
-    /// A [`SpinResult`] indicating whether to continue or abort.
-    fn spin(&self) -> SpinResult;
-}
-
-#[cfg(not(nightly))]
-pub trait ISpin
-where Self: const core::default::Default
+where Self: core::default::Default
 {
     /// Perform one spin iteration.
     ///

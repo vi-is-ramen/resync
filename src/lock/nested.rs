@@ -30,7 +30,7 @@ impl<L1: ILock, L2: ILock> Nested<L1, L2>
     /// # Panics
     /// This method does not panic, but relies on `L1::default()` and
     /// `L2::default()` not to panic.
-    pub const fn new() -> Self
+    pub fn new() -> Self
     {
         Self {
             l1: L1::default(),
@@ -39,19 +39,6 @@ impl<L1: ILock, L2: ILock> Nested<L1, L2>
     }
 }
 
-#[cfg(nightly)]
-const impl<L1: ILock, L2: ILock> core::default::Default for Nested<L1, L2>
-{
-    fn default() -> Self
-    {
-        Self {
-            l1: L1::default(),
-            l2: L2::default(),
-        }
-    }
-}
-
-#[cfg(not(nightly))]
 impl<L1: ILock, L2: ILock> core::default::Default for Nested<L1, L2>
 {
     fn default() -> Self

@@ -35,18 +35,6 @@ impl Atomic
     }
 }
 
-#[cfg(nightly)]
-const impl core::default::Default for Atomic
-{
-    fn default() -> Self
-    {
-        Self {
-            flag: AtomicBool::new(false),
-        }
-    }
-}
-
-#[cfg(not(nightly))]
 impl core::default::Default for Atomic
 {
     fn default() -> Self

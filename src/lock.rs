@@ -34,27 +34,6 @@ use crate::LockResult;
 ///
 /// # Panics
 /// Implementations **must not** panic under normal conditions.
-#[cfg(nightly)]
-pub trait ILock
-where Self: const core::default::Default
-{
-    /// Attempt to acquire the lock.
-    ///
-    /// This operation must be performed atomically.
-    ///
-    /// # Returns
-    /// A [`LockResult`] indicating success, failure, or abort.
-    fn try_lock(&self) -> LockResult;
-
-    /// Release the lock.
-    ///
-    /// This method is idempotent – calling it on an already‑free lock does
-    /// nothing. It must be safe to call concurrently (though races are
-    /// benign because the lock state is set to unlocked).
-    fn free(&self);
-}
-
-#[cfg(not(nightly))]
 pub trait ILock
 where Self: core::default::Default
 {
