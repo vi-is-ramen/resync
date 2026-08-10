@@ -1,10 +1,10 @@
 [package]
 name = "resync"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
 license = "MIT OR Apache-2.0"
-description = "work in progress"
+description = "A LEGO-like synchronization primitives library for Rust"
 repository = "https://github.com/vi-is-ramen/resync"
 readme = "README.md"
 homepage = "https://github.com/vi-is-ramen/resync"
