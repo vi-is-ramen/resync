@@ -1,0 +1,14 @@
+# .github/workflows/miri.yml
+name: Miri (UB & Data Race Check)
+on: [push, pull_request]
+jobs:
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - name: Run Miri
+        run: cargo miri test

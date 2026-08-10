@@ -1,14 +1,34 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! A LEGO-like synchronization primitives library.
+//!
+//! This crate provides building blocks for implementing locks and spin loops,
+//! with composable traits and backends that can be swapped at compile time.
+//!
+//! Guidebook: [`guide`]
+//!
+//! # Features
+//! - `std` (enabled by default): enables OS‑based spinning ([`spin::Os`]).
+//! - Nightly features: const traits and const [`core::default::Default`]
+//!   implementations when the `nightly` rustc channel is detected.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#![cfg_attr(nightly,
+    feature(
+        // nightly features
+        const_trait_impl,
+        const_default,
+    )
+)]
+#![cfg_attr(all(test, nightly), feature(derive_const))]
+// don't link to libstd if `std` feature disabled
+#![cfg_attr(not(feature = "std"), no_std)]
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub mod lock;
+mod prim;
+mod result;
+pub mod spin;
+
+pub use lock::ILock;
+pub use prim::*;
+pub use result::*;
+pub use spin::ISpin;
+
+pub mod guide;

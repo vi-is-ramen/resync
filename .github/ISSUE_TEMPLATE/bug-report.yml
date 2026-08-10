@@ -1,0 +1,59 @@
+name: Bug Report
+description: Report a bug, data race, or undefined behavior in Resync
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug! Since Resync deals with concurrency and `unsafe` code, please provide as much detail as possible.
+        If you have found a security vulnerability (e.g., a soundness hole), please **do not** use this form. Instead, use the private vulnerability reporting feature.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Please provide a minimal, reproducible code example. A link to a GitHub Gist or repository is highly preferred.
+      placeholder: |
+        ```rust
+        use resync::Mutex;
+        // your code here
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include any panic messages, Miri UB reports, or deadlock symptoms.
+    validations:
+      required: true
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust Version
+      description: What version of `rustc` are you using? (`rustc --version`). Please specify if you are on stable, beta, or nightly.
+      placeholder: "e.g., rustc 1.75.0 (82e1608df 2023-12-21) [stable]"
+    validations:
+      required: true
+  - type: input
+    id: resync-version
+    attributes:
+      label: Resync Version
+      description: What version of Resync are you using? (Found in your `Cargo.toml` or `Cargo.lock`).
+      placeholder: "e.g., 0.1.0"
+    validations:
+      required: true

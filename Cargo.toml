@@ -1,11 +1,26 @@
 [package]
 name = "resync"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "work in progress"
 repository = "https://github.com/vi-is-ramen/resync"
-# readme = "README.md"
-# homepage = ""
+readme = "README.md"
+homepage = "https://github.com/vi-is-ramen/resync"
+categories = ["concurrency", "no-std", "os"]
+keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
 
 [dependencies]
+
+[build-dependencies]
+version_check = "0.9"
+
+[features]
+default = ["std"]
+std = []
+
+[lints.rust]
+unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)', 'cfg(beta)', 'cfg(dev)'] }
+missing_docs = 'deny'
+missing_debug_implementations = 'deny'
