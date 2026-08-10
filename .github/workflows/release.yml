@@ -32,9 +32,9 @@ jobs:
         run: |
           # Test all subsets of features
           if [ -z "${{ matrix.features }}" ]; then
-            cargo test --locked
+            cargo test
           else
-            cargo test ${{ matrix.features }} --locked
+            cargo test ${{ matrix.features }}
           fi
 
   publish:
