@@ -116,15 +116,12 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
     {
         match self.lock.try_lock()
         {
-            LockResult::Abort => return None,
-            LockResult::Done =>
-            {
-                return Some(MutexGuard {
-                    data: self.inner.get(),
-                    lock: &self.lock,
-                });
-            },
-            LockResult::Fail => return None,
+            LockResult::Abort => None,
+            LockResult::Done => Some(MutexGuard {
+                data: self.inner.get(),
+                lock: &self.lock,
+            }),
+            LockResult::Fail => None,
         }
     }
 

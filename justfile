@@ -1,15 +1,20 @@
 default:
     @just --list
 
-# Run all standard checks
 check:
-    cargo fmt --all -- --check
-    cargo clippy --all-targets --all-features -- -D warnings
+    @cargo fmt --all -- --check
+    @cargo clippy --all-targets --all-features -- -D warnings
 
-# Run tests
 test:
-    cargo test --all-features
+    @cargo test --all-features
+    @cargo test --no-default-features
+    @cargo test
 
-# Generate local docs
+pre-commit: check test
+
+commit *a: pre-commit
+    @git add -A
+    @git commit "{{a}}"
+
 docs:
-    RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open
+    @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open
