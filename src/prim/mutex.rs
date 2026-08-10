@@ -102,6 +102,32 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
         }
     }
 
+    /// Acquires the mutex but not blocking until the lock is acquired or an
+    /// abort occurs: returns Option instead.
+    ///
+    /// # Returns
+    /// - [`Some`] – the lock was acquired and the guard grants access to the
+    ///   protected data.
+    /// - [`None`] – the underlying lock reported an abort or mutex is locked.
+    ///
+    /// # Panics
+    /// This method does not panic.
+    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L>>
+    {
+        match self.lock.try_lock()
+        {
+            LockResult::Abort => return None,
+            LockResult::Done =>
+            {
+                return Some(MutexGuard {
+                    data: self.inner.get(),
+                    lock: &self.lock,
+                });
+            },
+            LockResult::Fail => return None,
+        }
+    }
+
     /// Acquires the mutex, blocking until the lock is acquired or an abort
     /// occurs.
     ///
