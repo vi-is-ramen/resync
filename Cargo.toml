@@ -5,5 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "work in progress"
 repository = "https://github.com/vi-is-ramen/resync"
+# readme = "README.md"
+# homepage = ""
 
 [dependencies]
