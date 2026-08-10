@@ -61,13 +61,50 @@ jobs:
         with:
           fetch-depth: 0 # Required for cocogitto to read commit history
 
-      - name: Generate Changelog
+      - name: Build Changelog
         id: changelog
-        uses: cocogitto/cocogitto-action@v4
+        uses: mikepenz/release-changelog-builder-action@v4
         with:
-          command: changelog
-          # Generate changelog specifically for the tag that triggered the workflow
-          args: --at ${{ github.ref_name }}
+          # This tells it to look at commits instead of PRs
+          mode: "COMMIT"
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}\n\n<details>\n<summary>Other Changes</summary>\n\n#{{UNCATEGORIZED}}\n</details>",
+              "categories": [
+                {
+                  "title": "## Features",
+                  "labels": ["feat"]
+                },
+                {
+                  "title": "## Fixes",
+                  "labels": ["fix"]
+                },
+                {
+                  "title": "## Documentation",
+                  "labels": ["docs"]
+                },
+                {
+                  "title": "## Chores",
+                  "labels": ["chore"]
+                }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(feat|fix|docs|chore|refactor|perf|test|build|ci|revert)(\\(.+\\))?!?: .+",
+                  "target": "$1",
+                  "on_property": "title"
+                }
+              ]
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.toNewReleases }}
+          draft: false
+          prerelease: false
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
