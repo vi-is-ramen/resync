@@ -127,7 +127,7 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
                     return Some(MutexGuard {
                         data: self.inner.get(),
                         lock: &self.lock,
-                    })
+                    });
                 },
                 LockResult::Fail => match self.spin.spin()
                 {

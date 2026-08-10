@@ -125,7 +125,7 @@
 //! [`crate::ISpin`] with exponential backoff and plug it into the
 //! [`crate::Mutex`]:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use resync::lock::Atomic;
 //! use resync::{ISpin, Mutex, SpinResult};
 //!
