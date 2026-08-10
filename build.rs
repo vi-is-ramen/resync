@@ -1,4 +1,4 @@
-//!
+//! Custom build script for detecting compiler channel.
 
 extern crate version_check as vc;
 

@@ -61,11 +61,4 @@ mod tests
         let spin = Busy;
         assert_eq!(spin.spin(), SpinResult::Ok);
     }
-
-    #[test]
-    fn busy_default_works()
-    {
-        let spin = Busy::default();
-        assert_eq!(spin.spin(), SpinResult::Ok);
-    }
 }

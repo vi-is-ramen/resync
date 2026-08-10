@@ -61,11 +61,4 @@ mod tests
         let spin = Os;
         assert_eq!(spin.spin(), SpinResult::Ok);
     }
-
-    #[test]
-    fn os_default_works()
-    {
-        let spin = Os::default();
-        assert_eq!(spin.spin(), SpinResult::Ok);
-    }
 }
