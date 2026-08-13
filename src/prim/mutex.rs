@@ -35,6 +35,11 @@ pub struct Mutex<
     spin:  S,
 }
 
+unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Sync
+    for Mutex<T, L, S>
+{
+}
+
 impl<T: core::default::Default, L: crate::ILock, S: crate::ISpin>
     core::default::Default for Mutex<T, L, S>
 {

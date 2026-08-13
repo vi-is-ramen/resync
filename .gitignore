@@ -1,2 +1,11 @@
-/target
+target/
 Cargo.lock
+
+testing/util/target/
+testing/util/Cargo.lock
+scripts/__pycache__
+
+*.py[cod]
+*.so
+*.o
+*.d

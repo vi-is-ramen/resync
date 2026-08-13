@@ -6,22 +6,26 @@ import tomllib as toml
 
 
 class Cargo:
-    class Manifest(dict):
-        def __init__(self, inner: dict) -> None:
+    class Manifest(dict[object, object]):
+        def __init__(self, inner: dict[object, object]) -> None:
+            super().__init__()
             self.update(inner)
 
         def __getattr__(self, name: str) -> object:
-            if name[0] == '_':
-                return super().__getattr__(self, name)
+            if name[0] == "_":
+                return object.__getattr__(self, name)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAttributeAccessIssue]
             else:
-                val = super().__getitem__(self, name)
+                val = super().__getitem__(name)
 
                 if isinstance(val, dict):
-                    return Cargo.Manifest(val)
+                    return Cargo.Manifest(val)  # pyright: ignore[reportUnknownArgumentType]
 
                 return val
 
     @staticmethod
     def manifest():
         with open("Cargo.toml", "rb") as f:
-            return Cargo.Manifest(toml.load(f))
+            return Cargo.Manifest(toml.load(f))  # pyright: ignore[reportArgumentType]
+
+
+__all__ = ["Cargo", "j", "rq", "sp", "toml"]

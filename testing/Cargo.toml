@@ -1,0 +1,12 @@
+[package]
+name = "resync-tests"
+edition = "2024"
+version = "0.0.0"
+workspace = "util"
+publish = false
+[dependencies]
+resync = { path = ".." }
+
+[[bin]]
+path = "m64.rs"
+name = "m64"

@@ -8,9 +8,12 @@ check:
 test:
     @cargo test --all-features
     @cargo test --no-default-features
-    @cargo test
+    @python scripts/test.py
 
-pre-commit: check test
+clean:
+    @cargo clean
+
+pre-commit: clean check test
 
 docs:
     @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open

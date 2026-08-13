@@ -22,7 +22,7 @@ pub mod share;
 pub mod spin;
 
 pub use lock::ILock;
-pub use prim::*;
+pub use prim::{Barrier, Gate, Mutex, MutexGuard, RwLock, RwMut, RwRef};
 pub use result::*;
 pub use share::IShare;
 pub use spin::ISpin;

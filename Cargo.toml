@@ -2,6 +2,7 @@
 name = "resync"
 version = "0.4.0"
 edition = "2024"
+workspace = "testing/util"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "A LEGO-like synchronization primitives library for Rust"

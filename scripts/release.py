@@ -1,21 +1,22 @@
-import lib
+import lib  # pyright: ignore[reportImplicitRelativeImport]
 
 CARGO_TOML = lib.Cargo.manifest()
 
 
 def is_new_version() -> bool:
-    for line in lib.rq.urlopen("https://index.crates.io/re/sy/resync"):
-        ver = lib.json.loads(line)
-        if ver["vers"] == CARGO_TOML.package.version:
+    for line in lib.rq.urlopen("https://index.crates.io/re/sy/resync"):  # pyright: ignore[reportAny]
+        ver = lib.j.loads(line)  # pyright: ignore[reportAny]
+        if ver["vers"] == CARGO_TOML.package.version:  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             return False
+    return True
 
 
 def publish():
-    lib.sp.run(["cargo", "publish"], check=True)
+    _ = lib.sp.run(["cargo", "publish"], check=True)
 
 
 def tag():
-    name = "v" + CARGO_TOML.package.version
+    name = "v" + CARGO_TOML.package.version  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
 
     sha = (
         lib.sp.run(["git", "rev-parse", "HEAD"], check=True, stdout=lib.sp.PIPE)
@@ -23,8 +24,8 @@ def tag():
         .strip()
     )
 
-    lib.sp.run(
-        [
+    _ = lib.sp.run(
+        [  # pyright: ignore[reportUnknownArgumentType]
             "gh",
             "api",
             "/repos/vi-is-ramen/resync/git/refs",
@@ -44,3 +45,6 @@ def main():
     if is_new_version():
         publish()
         tag()
+
+
+main()
