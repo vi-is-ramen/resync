@@ -9,7 +9,7 @@
 > Every day, I conduct research and develop prototypes for libraries, utilities, and other developer
 > tools — investing a great deal of time without any financial return. All my projects are driven purely
 > by enthusiasm and willpower. I need help developing the ecosystem — specifically the `resync` crate —
-> and would be very grateful for issues, patches, or any other form of contribution (such as spreading the word).
+> and would be very grateful for issues, patches, spreading the word, or any other form of contribution.
 
 A LEGO-like synchronization primitives library for Rust.
 
