@@ -13,7 +13,7 @@ jobs:
         name: Format & Clippy
         runs-on: ubuntu-latest
         steps:
-            -   uses: actions/checkout@v4
+            -   uses: actions/checkout@v7
             -   uses: dtolnay/rust-toolchain@nightly
                 with:
                     components: rustfmt, clippy
@@ -27,7 +27,7 @@ jobs:
         needs: [check]
         runs-on: ubuntu-latest
         steps:
-            -   uses: actions/checkout@v4
+            -   uses: actions/checkout@v7
             -   uses: dtolnay/rust-toolchain@nightly
                 run: cargo build --all-features
     miri:
@@ -35,7 +35,7 @@ jobs:
         needs: [check]
         runs-on: ubuntu-latest
         steps:
-            -   uses: actions/checkout@v4
+            -   uses: actions/checkout@v7
             -   uses: dtolnay/rust-toolchain@nightly
                 with:
                     components: miri
@@ -55,7 +55,7 @@ jobs:
                     - "std"
         runs-on: ${{ matrix.os }}
         steps:
-            -   uses: actions/checkout@v4
+            -   uses: actions/checkout@v7
             -   uses: dtolnay/rust-toolchain@master
                 with:
                     toolchain: ${{ matrix.rust }}
@@ -69,7 +69,7 @@ jobs:
             content: write
         timeout-minutes: 15
         steps:
-            -   uses: actions/checkout@v4
+            -   uses: actions/checkout@v7
             -   uses: dtolnay/rust-toolchain@nightly
             -   run: "python .github/workflows/release.py"
                 env:
