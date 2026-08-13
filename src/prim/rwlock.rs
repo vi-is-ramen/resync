@@ -1,23 +1,15 @@
 //! A readers-writer lock that uses a spin strategy.
 
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::{ISpin, SpinResult};
-
-/// A constant representing that a writer holds the lock.
-///
-/// We use `usize::MAX` to represent the writer state. This leaves
-/// `0` through `usize::MAX - 1` available to track the number of
-/// concurrent readers.
-const WRITER: usize = usize::MAX;
+use crate::{IShare, ISpin, LockResult, SpinResult};
 
 /// A readers-writer lock primitive that protects a value of type `T`.
 ///
 /// The `RwLock` is parameterised by:
 /// - `T`: the data being protected.
-/// - `S`: the spin strategy (must implement [`ISpin`]) used while waiting for
-///   the lock.
+/// - `L`: the shared lock implementation (must implement [`IShare`]).
+/// - `S`: the spin strategy (must implement [`ISpin`]) used while waiting.
 ///
 /// # Examples
 /// ```
@@ -35,67 +27,67 @@ const WRITER: usize = usize::MAX;
 ///
 /// # Errors
 /// The [`RwLock::read`] and [`RwLock::write`] methods return `None` if the
-/// underlying spin strategy reports an abort.
+/// underlying lock reports `Abort` (unrecoverable error) or if the spin
+/// strategy aborts.
 #[allow(missing_debug_implementations)]
-pub struct RwLock<T, S: ISpin = crate::spin::DefaultSpin>
-{
-    inner:   UnsafeCell<T>,
-    counter: AtomicUsize,
-    spin:    S,
+pub struct RwLock<
+    T,
+    L: IShare = crate::share::Atomic,
+    S: ISpin = crate::spin::DefaultSpin,
+> {
+    inner: UnsafeCell<T>,
+    lock:  L,
+    spin:  S,
 }
 
-impl<T: core::default::Default, S: ISpin> core::default::Default
-    for RwLock<T, S>
+impl<T: core::default::Default, L: IShare, S: ISpin> core::default::Default
+    for RwLock<T, L, S>
 {
     fn default() -> Self
     {
         Self {
-            inner:   UnsafeCell::new(T::default()),
-            counter: AtomicUsize::new(0),
-            spin:    S::default(),
+            inner: UnsafeCell::new(T::default()),
+            lock:  L::default(),
+            spin:  S::default(),
         }
     }
 }
 
 /// A guard that provides immutable access to the protected data.
-///
 /// The guard releases the read lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct RwRef<'a, T, S: ISpin>
+pub struct RwRef<'a, T, L: IShare, S: ISpin>
 {
     data: *const T,
-    lock: &'a RwLock<T, S>,
+    lock: &'a RwLock<T, L, S>,
 }
 
 /// A guard that provides mutable access to the protected data.
-///
 /// The guard releases the write lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct RwMut<'a, T, S: ISpin>
+pub struct RwMut<'a, T, L: IShare, S: ISpin>
 {
     data: *mut T,
-    lock: &'a RwLock<T, S>,
+    lock: &'a RwLock<T, L, S>,
 }
 
-impl<'a, T, S: ISpin> core::ops::Drop for RwMut<'a, T, S>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Drop for RwRef<'a, T, L, S>
 {
-    /// Releases the write lock when the guard goes out of scope.
     fn drop(&mut self)
     {
-        self.lock.free_mut();
+        self.lock.lock.free_read();
     }
 }
 
-impl<'a, T, S: ISpin> core::ops::Drop for RwRef<'a, T, S>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Drop for RwMut<'a, T, L, S>
 {
-    /// Releases the read lock when the guard goes out of scope.
     fn drop(&mut self)
     {
-        self.lock.free();
+        self.lock.lock.free_write();
     }
 }
 
-impl<'a, T, S: ISpin> core::ops::Deref for RwRef<'a, T, S>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Deref for RwRef<'a, T, L, S>
 {
     type Target = T;
 
@@ -106,7 +98,7 @@ impl<'a, T, S: ISpin> core::ops::Deref for RwRef<'a, T, S>
     }
 }
 
-impl<'a, T, S: ISpin> core::ops::Deref for RwMut<'a, T, S>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Deref for RwMut<'a, T, L, S>
 {
     type Target = T;
 
@@ -117,7 +109,7 @@ impl<'a, T, S: ISpin> core::ops::Deref for RwMut<'a, T, S>
     }
 }
 
-impl<'a, T, S: ISpin> core::ops::DerefMut for RwMut<'a, T, S>
+impl<'a, T, L: IShare, S: ISpin> core::ops::DerefMut for RwMut<'a, T, L, S>
 {
     fn deref_mut(&mut self) -> &mut Self::Target
     {
@@ -126,178 +118,94 @@ impl<'a, T, S: ISpin> core::ops::DerefMut for RwMut<'a, T, S>
     }
 }
 
-impl<T, S: ISpin> RwLock<T, S>
+impl<T, L: IShare, S: ISpin> RwLock<T, L, S>
 {
     /// Creates a new `RwLock` protecting the given `value`.
-    ///
-    /// The spin strategy is initialised with its [`core::default::Default`]
-    /// implementation.
     pub fn new(value: T) -> Self
     {
         Self {
-            inner:   UnsafeCell::new(value),
-            counter: AtomicUsize::new(0),
-            spin:    S::default(),
+            inner: UnsafeCell::new(value),
+            lock:  L::default(),
+            spin:  S::default(),
         }
     }
 
     /// Attempts to acquire a read lock without blocking.
     ///
     /// # Returns
-    /// - [`Some`] – the read lock was acquired.
-    /// - [`None`] – the lock is currently held by a writer.
-    pub fn try_read(&self) -> Option<RwRef<'_, T, S>>
+    /// - `Some` – the read lock was acquired.
+    /// - `None` – the lock is currently held by a writer, or an abort occurred.
+    pub fn try_read(&self) -> Option<RwRef<'_, T, L, S>>
     {
-        loop
+        match self.lock.try_read()
         {
-            let state = self.counter.load(Ordering::Relaxed);
-            if state == WRITER
-            {
-                return None;
-            }
-
-            if self
-                .counter
-                .compare_exchange_weak(
-                    state,
-                    state + 1,
-                    Ordering::Acquire,
-                    Ordering::Relaxed,
-                )
-                .is_ok()
-            {
-                return Some(RwRef {
-                    data: self.inner.get(),
-                    lock: self,
-                });
-            }
+            LockResult::Done => Some(RwRef {
+                data: self.inner.get(),
+                lock: self,
+            }),
+            _ => None,
         }
     }
 
     /// Acquires a read lock, spinning until it is acquired or an abort occurs.
-    ///
-    /// # Returns
-    /// - [`Some`] – the read lock was acquired.
-    /// - [`None`] – the spin strategy reported an abort.
-    pub fn read(&self) -> Option<RwRef<'_, T, S>>
+    pub fn read(&self) -> Option<RwRef<'_, T, L, S>>
     {
         loop
         {
-            let state = self.counter.load(Ordering::Relaxed);
-            if state == WRITER
+            match self.lock.try_read()
             {
-                match self.spin.spin()
+                LockResult::Done =>
+                {
+                    return Some(RwRef {
+                        data: self.inner.get(),
+                        lock: self,
+                    });
+                },
+                LockResult::Abort => return None,
+                LockResult::Fail => match self.spin.spin()
                 {
                     SpinResult::Ok => continue,
                     SpinResult::Abort => return None,
-                }
-            }
-
-            if self
-                .counter
-                .compare_exchange_weak(
-                    state,
-                    state + 1,
-                    Ordering::Acquire,
-                    Ordering::Relaxed,
-                )
-                .is_ok()
-            {
-                return Some(RwRef {
-                    data: self.inner.get(),
-                    lock: self,
-                });
-            }
-
-            if let SpinResult::Abort = self.spin.spin()
-            {
-                return None;
+                },
             }
         }
     }
 
     /// Attempts to acquire a write lock without blocking.
-    ///
-    /// # Returns
-    /// - [`Some`] – the write lock was acquired.
-    /// - [`None`] – the lock is currently held by readers or another writer.
-    pub fn try_write(&self) -> Option<RwMut<'_, T, S>>
+    pub fn try_write(&self) -> Option<RwMut<'_, T, L, S>>
     {
-        loop
+        match self.lock.try_write()
         {
-            let state = self.counter.load(Ordering::Relaxed);
-            if state != 0
-            {
-                return None;
-            }
-
-            if self
-                .counter
-                .compare_exchange_weak(
-                    0,
-                    WRITER,
-                    Ordering::Acquire,
-                    Ordering::Relaxed,
-                )
-                .is_ok()
-            {
-                return Some(RwMut {
-                    data: self.inner.get(),
-                    lock: self,
-                });
-            }
+            LockResult::Done => Some(RwMut {
+                data: self.inner.get(),
+                lock: self,
+            }),
+            _ => None,
         }
     }
 
     /// Acquires a write lock, spinning until it is acquired or an abort occurs.
-    ///
-    /// # Returns
-    /// - [`Some`] – the write lock was acquired.
-    /// - [`None`] – the spin strategy reported an abort.
-    pub fn write(&self) -> Option<RwMut<'_, T, S>>
+    pub fn write(&self) -> Option<RwMut<'_, T, L, S>>
     {
         loop
         {
-            if self
-                .counter
-                .compare_exchange_weak(
-                    0,
-                    WRITER,
-                    Ordering::Acquire,
-                    Ordering::Relaxed,
-                )
-                .is_ok()
+            match self.lock.try_write()
             {
-                return Some(RwMut {
-                    data: self.inner.get(),
-                    lock: self,
-                });
-            }
-
-            match self.spin.spin()
-            {
-                SpinResult::Ok => continue,
-                SpinResult::Abort => return None,
+                LockResult::Done =>
+                {
+                    return Some(RwMut {
+                        data: self.inner.get(),
+                        lock: self,
+                    });
+                },
+                LockResult::Abort => return None,
+                LockResult::Fail => match self.spin.spin()
+                {
+                    SpinResult::Ok => continue,
+                    SpinResult::Abort => return None,
+                },
             }
         }
-    }
-
-    /// Releases a read lock.
-    ///
-    /// This method is not idempotent and must only be called by the `RwRef`
-    /// guard.
-    fn free(&self)
-    {
-        self.counter.fetch_sub(1, Ordering::Release);
-    }
-
-    /// Releases a write lock.
-    ///
-    /// This method is not idempotent and must only be called by the `RwMut`
-    /// guard.
-    fn free_mut(&self)
-    {
-        self.counter.store(0, Ordering::Release);
     }
 }
 
@@ -310,7 +218,7 @@ mod tests
     #[test]
     fn rwlock_new_and_read()
     {
-        let lock = RwLock::<u32, Busy>::new(42);
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::new(42);
         let guard = lock.read().unwrap();
         assert_eq!(*guard, 42);
     }
@@ -318,7 +226,7 @@ mod tests
     #[test]
     fn rwlock_write_and_read()
     {
-        let lock = RwLock::<u32, Busy>::new(0);
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::new(0);
         {
             let mut guard = lock.write().unwrap();
             *guard = 100;
@@ -330,7 +238,7 @@ mod tests
     #[test]
     fn rwlock_multiple_readers()
     {
-        let lock = RwLock::<u32, Busy>::new(42);
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::new(42);
         let g1 = lock.read().unwrap();
         let g2 = lock.read().unwrap();
         assert_eq!(*g1, 42);
@@ -340,7 +248,7 @@ mod tests
     #[test]
     fn rwlock_try_write_fails_when_read()
     {
-        let lock = RwLock::<u32, Busy>::new(42);
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::new(42);
         let _g = lock.read().unwrap();
         assert!(lock.try_write().is_none());
     }
@@ -348,7 +256,7 @@ mod tests
     #[test]
     fn rwlock_try_read_fails_when_written()
     {
-        let lock = RwLock::<u32, Busy>::new(42);
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::new(42);
         let _g = lock.write().unwrap();
         assert!(lock.try_read().is_none());
     }
@@ -356,7 +264,7 @@ mod tests
     #[test]
     fn rwlock_default_works()
     {
-        let lock = RwLock::<u32, Busy>::default();
+        let lock = RwLock::<u32, crate::share::Atomic, Busy>::default();
         let guard = lock.read().unwrap();
         assert_eq!(*guard, 0);
     }

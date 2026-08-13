@@ -14,11 +14,13 @@
 pub mod lock;
 mod prim;
 mod result;
+pub mod share;
 pub mod spin;
 
 pub use lock::ILock;
 pub use prim::*;
 pub use result::*;
+pub use share::IShare;
 pub use spin::ISpin;
 
 pub mod guide;
