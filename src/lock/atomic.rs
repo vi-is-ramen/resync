@@ -45,7 +45,7 @@ impl core::default::Default for Atomic
     }
 }
 
-impl ILock for Atomic
+unsafe impl ILock for Atomic
 {
     /// Attempts to acquire the lock using a compare‑and‑swap operation.
     ///
@@ -64,6 +64,20 @@ impl ILock for Atomic
         match self.flag.compare_exchange(
             false,
             true,
+            Ordering::Acquire,
+            Ordering::Relaxed,
+        )
+        {
+            Ok(_) => LockResult::Done,
+            Err(_) => LockResult::Fail,
+        }
+    }
+
+    fn fake_lock(&self) -> LockResult
+    {
+        match self.flag.compare_exchange(
+            false,
+            false,
             Ordering::Acquire,
             Ordering::Relaxed,
         )

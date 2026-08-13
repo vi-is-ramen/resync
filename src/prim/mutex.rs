@@ -173,13 +173,17 @@ mod tests
     // A mock lock that always returns Abort.
     #[derive(Default)]
     struct AbortLock;
-    impl ILock for AbortLock
+    unsafe impl ILock for AbortLock
     {
         fn try_lock(&self) -> LockResult
         {
             LockResult::Abort
         }
         fn free(&self) {}
+        fn fake_lock(&self) -> LockResult
+        {
+            todo!()
+        }
     }
 
     // A mock spin that aborts on first call (returns Abort).
@@ -254,13 +258,17 @@ mod tests
         // spin loop.
         #[derive(Default)]
         struct FailLock;
-        impl ILock for FailLock
+        unsafe impl ILock for FailLock
         {
             fn try_lock(&self) -> LockResult
             {
                 LockResult::Fail
             }
             fn free(&self) {}
+            fn fake_lock(&self) -> LockResult
+            {
+                todo!()
+            }
         }
         let mutex = Mutex::<u32, FailLock, AbortSpin>::new(5);
         assert!(mutex.lock().is_none());

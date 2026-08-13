@@ -1,22 +1,22 @@
 //! Spin strategies for wait loops.
 
 mod busy;
-#[cfg(feature = "std")]
-mod os;
+
+pub use crate::os::spin::*;
 
 pub use busy::*;
-#[cfg(feature = "std")]
-pub use os::*;
 
 /// Default spin strategy for current environment,
-/// selected by Resync. It's yielding with `std`
-/// feature and busy-waiting without `std` feature.
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
 #[cfg(feature = "std")]
 pub type DefaultSpin = Os;
 
 /// Default spin strategy for current environment,
-/// selected by Resync. It's yielding with `std`
-/// feature and busy-waiting without `std` feature.
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
 #[cfg(not(feature = "std"))]
 pub type DefaultSpin = Busy;
 

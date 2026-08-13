@@ -12,10 +12,23 @@
 mod atomic;
 mod nested;
 
+pub use crate::os::lock::*;
 pub use atomic::*;
 pub use nested::*;
 
-// TODO: Os lock variant
+/// Default lock strategy for current environment,
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
+#[cfg(feature = "std")]
+pub type DefaultLock = Os;
+
+/// Default lock strategy for current environment,
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
+#[cfg(not(feature = "std"))]
+pub type DefaultLock = Atomic;
 
 use crate::LockResult;
 
@@ -34,7 +47,12 @@ use crate::LockResult;
 ///
 /// # Panics
 /// Implementations **must not** panic under normal conditions.
-pub trait ILock
+///
+/// # Safety
+///
+/// This trait marked `unsafe` as Rust can't guarantee some invariants
+/// but developers of implementors must do it.
+pub unsafe trait ILock
 where Self: core::default::Default
 {
     /// Attempt to acquire the lock.
@@ -51,4 +69,12 @@ where Self: core::default::Default
     /// nothing. It must be safe to call concurrently (though races are
     /// benign because the lock state is set to unlocked).
     fn free(&self);
+
+    /// Attempt to acquire the lock but without change of its state.
+    ///
+    /// This operation must be performed atomically.
+    ///
+    /// # Returns
+    /// A [`LockResult`] indicating success, failure or abort.
+    fn fake_lock(&self) -> LockResult;
 }

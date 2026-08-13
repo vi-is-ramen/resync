@@ -50,7 +50,7 @@ impl<L1: ILock, L2: ILock> core::default::Default for Nested<L1, L2>
     }
 }
 
-impl<L1: ILock, L2: ILock> ILock for Nested<L1, L2>
+unsafe impl<L1: ILock, L2: ILock> ILock for Nested<L1, L2>
 {
     /// Attempts to acquire both inner locks in order (`L1` then `L2`).
     ///
@@ -97,6 +97,43 @@ impl<L1: ILock, L2: ILock> ILock for Nested<L1, L2>
                 // we need to reset L1 (otherwise deadlock possible)
                 // and return Fail.
                 self.l1.free();
+                LockResult::Fail
+            }
+        }
+    }
+
+    fn fake_lock(&self) -> LockResult
+    {
+        // NOTE:
+        // same logic as in `try_lock` but without `free`s as we don't change
+        // states of locks.
+
+        // lock L1
+        let l1 = self.l1.fake_lock();
+
+        // early return if L1 is Fail
+        if l1 == LockResult::Fail
+        {
+            return l1;
+        }
+
+        // lock l2
+        let l2 = self.l2.fake_lock();
+
+        // check if both are Done
+        if l1 == l2 && l2 == LockResult::Done
+        {
+            l1
+        }
+        else
+        {
+            // if Abort in one of the results, reset both locks and return Abort
+            if l1 == LockResult::Abort || l2 == LockResult::Abort
+            {
+                LockResult::Abort
+            }
+            else
+            {
                 LockResult::Fail
             }
         }

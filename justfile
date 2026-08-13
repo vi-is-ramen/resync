@@ -14,7 +14,7 @@ pre-commit: check test
 
 commit *a: pre-commit
     @git add -A
-    @git commit "{{a}}"
+    @git commit {{a}}
 
 docs:
     @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open

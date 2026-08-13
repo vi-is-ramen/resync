@@ -1,5 +1,3 @@
-//! An OS‑based spin strategy that yields the current thread.
-
 use crate::{ISpin, SpinResult};
 
 /// A spin strategy that calls [`std::thread::yield_now`].
@@ -16,12 +14,13 @@ use crate::{ISpin, SpinResult};
 /// let spin = Os;
 /// assert_eq!(spin.spin(), SpinResult::Ok);
 /// ```
-#[allow(missing_debug_implementations)]
+#[derive(Default, Debug)]
 pub struct Os;
 
-impl core::default::Default for Os
+impl Os
 {
-    fn default() -> Self
+    /// Creates new instance of [`Os`] spin strategy.
+    pub const fn new() -> Self
     {
         Self
     }
@@ -35,20 +34,7 @@ impl ISpin for Os
     /// Always [`SpinResult::Ok`].
     fn spin(&self) -> SpinResult
     {
-        std::thread::yield_now();
+        core::hint::spin_loop();
         SpinResult::Ok
-    }
-}
-
-#[cfg(test)]
-mod tests
-{
-    use super::*;
-
-    #[test]
-    fn os_spin_returns_ok()
-    {
-        let spin = Os;
-        assert_eq!(spin.spin(), SpinResult::Ok);
     }
 }

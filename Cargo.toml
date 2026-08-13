@@ -12,13 +12,14 @@ categories = ["concurrency", "no-std", "os"]
 keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
 
 [dependencies]
+libc = { version = "0.2", optional = true }
 
 [build-dependencies]
 version_check = "0.9"
 
 [features]
-default = ["std"]
-std = []
+default = [ "std" ]
+std = [ "dep:libc" ]
 
 [lints.rust]
 unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)', 'cfg(beta)', 'cfg(dev)'] }

@@ -12,7 +12,22 @@
 
 mod atomic;
 
+pub use crate::os::share::*;
 pub use atomic::*;
+
+/// Default share strategy for current environment,
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
+#[cfg(feature = "std")]
+pub type DefaultShare = Atomic;
+
+/// Default share strategy for current environment,
+/// selected by Resync. Good option if you just
+/// writing something platform-aware without
+/// deep-minding about synchronization.
+#[cfg(not(feature = "std"))]
+pub type DefaultShare = Atomic;
 
 use crate::LockResult;
 
