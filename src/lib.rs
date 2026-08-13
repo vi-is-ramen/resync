@@ -6,7 +6,7 @@
 //! Guidebook: [`guide`]
 //!
 //! # Features
-//! - `std` (enabled by default): enables OS‑based spinning ([`spin::Os`]).
+//! - `std` (enabled by default): enables OS integration (requires libstd).
 
 // don't link to libstd if `std` feature disabled
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -27,7 +27,9 @@ pub use result::*;
 pub use share::IShare;
 pub use spin::ISpin;
 
-pub mod guide;
+#[doc = include_str!("../markdown/book.md")]
+pub mod guide
+{}
 
 #[cfg(not(feature = "std"))]
 mod os

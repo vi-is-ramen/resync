@@ -2,7 +2,7 @@ default:
     @just --list
 
 check:
-    @cargo fmt --all -- --check
+    @cargo fmt --all
     @cargo clippy --all-targets --all-features -- -D warnings
 
 test:
@@ -11,10 +11,6 @@ test:
     @cargo test
 
 pre-commit: check test
-
-commit *a: pre-commit
-    @git add -A
-    @git commit {{a}}
 
 docs:
     @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open

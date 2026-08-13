@@ -1,9 +1,7 @@
 //! Lock primitives and the core lock trait.
 //!
 //! This module defines the [`ILock`] trait and provides several concrete
-//! implementations:
-//! - [`Atomic`]: a lock based on a single atomic boolean.
-//! - [`Nested`]: a composite lock that acquires two inner locks in order.
+//! implementations.
 //!
 //! # Usage
 //! Implementors of [`ILock`] can be used as the locking backend for
@@ -57,7 +55,10 @@ where Self: core::default::Default
 {
     /// Attempt to acquire the lock.
     ///
-    /// This operation must be performed atomically.
+    /// This operation must be performed atomically for the resource.
+    ///
+    /// > **[!NOTE]**
+    /// > this method is ALLOWED to yield (e. g. wait on futex).
     ///
     /// # Returns
     /// A [`LockResult`] indicating success, failure, or abort.
@@ -73,6 +74,9 @@ where Self: core::default::Default
     /// Attempt to acquire the lock but without change of its state.
     ///
     /// This operation must be performed atomically.
+    ///
+    /// > **[!NOTE]**
+    /// > this method is **NOT ALLOWED** to yield (e. g. wait on futex).
     ///
     /// # Returns
     /// A [`LockResult`] indicating success, failure or abort.

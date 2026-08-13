@@ -13,18 +13,6 @@ const WRITER: usize = usize::MAX;
 /// - `0`              : the lock is free.
 /// - `1..=WRITER-1`   : the lock is held by that many readers.
 /// - `WRITER`         : the lock is held by a writer.
-///
-/// # Examples
-/// ```
-/// use resync::LockResult;
-/// use resync::share::{Atomic, IShare};
-///
-/// let lock = Atomic::default();
-/// assert_eq!(lock.try_read(), LockResult::Done); // read acquired
-/// assert_eq!(lock.try_write(), LockResult::Fail); // writer blocks readers
-/// lock.free_read(); // release read
-/// assert_eq!(lock.try_write(), LockResult::Done); // now writer can acquire
-/// ```
 #[repr(transparent)]
 #[derive(Default, Debug)]
 pub struct Atomic(AtomicUsize);

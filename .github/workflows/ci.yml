@@ -1,17 +1,77 @@
 name: CI
+
 on:
-  push:
-    branches: [main]
-  pull_request:
+    push:
+        branches: [main]
+    pull_request:
+
+permissions:
+    contents: write
 
 jobs:
-  check:
-    name: Format & Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt, clippy
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+    check:
+        name: Format & Clippy
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: dtolnay/rust-toolchain@nightly
+                with:
+                    components: rustfmt, clippy
+            -   name: Check formatting
+            -   run: cargo fmt --all -- --check
+            -   name: Check with Clippy
+            -   run: cargo clippy --all-targets --all-features -- -D warnings
+
+    build:
+        name: Build
+        needs: [check]
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: dtolnay/rust-toolchain@nightly
+            -   run: cargo build --all-features
+    miri:
+        name: Miri
+        needs: [check]
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: dtolnay/rust-toolchain@nightly
+                with:
+                    components: miri
+            -   name: Run Miri
+                run: cargo miri test
+
+    test:
+        name: Testing
+        needs: [check]
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+                rust: [stable, beta, nightly]
+                features:
+                    - ""
+                    - "std"
+        runs-on: ${{ matrix.os }}
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: dtolnay/rust-toolchain@master
+                with:
+                    toolchain: ${{ matrix.rust }}
+                run: "python .github/workflows/test.py ${{ matrix.features }}"
+
+    release:
+        name: Release
+        needs: [test, miri, build, check]
+        runs-on: ubuntu-latest
+        permissions:
+            content: write
+        timeout-minutes: 15
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: dtolnay/rust-toolchain@nightly
+                run: "python .github/workflows/release.py"
+                env:
+                    CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
