@@ -1,13 +1,9 @@
 //! # Mutex
 //!
 //! Simple test for mutex under 64 conccuring threads.
-//!
-//! <!-- Issue: #123456 -->
-
-#[macro_use]
-mod util;
 
 use resync::*;
+use resync_tests::*;
 use std::sync::LazyLock;
 use std::thread::spawn;
 

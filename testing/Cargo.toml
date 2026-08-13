@@ -7,6 +7,9 @@ publish = false
 [dependencies]
 resync = { path = ".." }
 
+[lib]
+path = "lib.rs"
+
 [[bin]]
-path = "m64.rs"
-name = "m64"
+path = "case/m64.rs"
+name = "case-m64"
