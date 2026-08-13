@@ -15,7 +15,7 @@ keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
 libc = { version = "0.2", optional = true }
 
 [build-dependencies]
-version_check = "0.9"
+rustversion = "1"
 
 [features]
 default = [ "std" ]

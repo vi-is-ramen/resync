@@ -1,25 +1,39 @@
 //! Custom build script for detecting compiler channel.
 
-extern crate version_check as vc;
+extern crate rustversion as rv;
+
+#[rv::nightly]
+fn a()
+{
+    println!("cargo:rustc-cfg=nightly")
+}
+
+#[rv::not(nightly)]
+fn a() {}
+
+#[rv::beta]
+fn b()
+{
+    println!("cargo:rustc-cfg=beta")
+}
+
+#[rv::not(beta)]
+fn b() {}
+
+#[rv::stable]
+fn c()
+{
+    println!("cargo:rustc-cfg=stable")
+}
+
+#[rv::not(stable)]
+fn c() {}
 
 fn main()
 {
     println!("cargo:rerun-if-changed=build.rs");
 
-    let channel = vc::Channel::read()
-        .or(vc::Channel::parse("1.0.0")) // default to stable
-        .unwrap();
-
-    if channel.is_nightly()
-    {
-        println!("cargo:rustc-cfg=nightly");
-    }
-    if channel.is_beta()
-    {
-        println!("cargo:rustc-cfg=beta");
-    }
-    if channel.is_stable()
-    {
-        println!("cargo:rustc-cfg=stable");
-    }
+    a();
+    b();
+    c();
 }
