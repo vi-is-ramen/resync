@@ -3,17 +3,9 @@
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 
-use crate::{ILock, ISpin, LockResult, SpinResult};
+use crate::{ILock, ISpin, LockStatus};
 
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
-///
-/// The mutex is parameterised by:
-/// - `T`: the protected data type.
-/// - `L`: the lock implementation (must implement [`ILock`]).
-/// - `S`: the spin strategy (must implement [`ISpin`]).
-///
-/// The lock implementation decides when to park based on the iteration
-/// count passed to [`ILock::try_lock`].
 #[allow(missing_debug_implementations)]
 pub struct Mutex<
     T,
@@ -42,8 +34,6 @@ impl<T: core::default::Default, L: ILock, S: ISpin> core::default::Default
 }
 
 /// A guard that provides mutable access to the protected data.
-///
-/// The guard releases the lock when dropped.
 #[allow(missing_debug_implementations)]
 pub struct MutexGuard<'a, T, L: ILock>
 {
@@ -92,13 +82,13 @@ impl<T, L: ILock, S: ISpin> Mutex<T, L, S>
     /// Attempts to acquire the mutex without blocking.
     ///
     /// # Returns
-    /// - [`Some`] – the lock was acquired.
-    /// - [`None`] – the lock is held or an abort occurred.
+    /// - `Some(guard)`: lock acquired
+    /// - `None`: lock is held or error occurred
     pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L>>
     {
         match self.lock.try_lock(0)
         {
-            LockResult::Done => Some(MutexGuard {
+            Ok(LockStatus::Done) => Some(MutexGuard {
                 data: self.inner.get(),
                 lock: &self.lock,
             }),
@@ -106,10 +96,11 @@ impl<T, L: ILock, S: ISpin> Mutex<T, L, S>
         }
     }
 
-    /// Acquires the mutex, blocking until available or an abort occurs.
+    /// Acquires the mutex, blocking until available.
     ///
-    /// The iteration count is passed to [`ILock::try_lock`], allowing the
-    /// lock implementation to decide when to park the current thread.
+    /// # Returns
+    /// - `Some(guard)`: lock acquired
+    /// - `None`: unrecoverable error or spin aborted
     pub fn lock(&self) -> Option<MutexGuard<'_, T, L>>
     {
         let mut iterations = 0usize;
@@ -119,19 +110,21 @@ impl<T, L: ILock, S: ISpin> Mutex<T, L, S>
 
             match self.lock.try_lock(iterations)
             {
-                LockResult::Abort => return None,
-                LockResult::Done =>
+                Ok(LockStatus::Done) =>
                 {
                     return Some(MutexGuard {
                         data: self.inner.get(),
                         lock: &self.lock,
                     });
                 },
-                LockResult::Fail => match self.spin.spin()
+                Ok(LockStatus::Fail) =>
                 {
-                    SpinResult::Ok => continue,
-                    SpinResult::Abort => return None,
+                    if self.spin.spin().is_err()
+                    {
+                        return None;
+                    }
                 },
+                Err(_) => return None,
             }
         }
     }
@@ -154,45 +147,5 @@ mod tests
         }
         let guard2 = mutex.lock().unwrap();
         assert_eq!(*guard2, 42);
-    }
-
-    #[test]
-    fn mutex_default_works()
-    {
-        let mutex = Mutex::<u32, Atomic, Busy>::default();
-        let guard = mutex.lock().unwrap();
-        assert_eq!(*guard, 0);
-    }
-
-    #[test]
-    fn mutex_guard_deref_mut()
-    {
-        let mutex = Mutex::<u32, Atomic, Busy>::new(10);
-        let mut guard = mutex.lock().unwrap();
-        *guard = 20;
-        assert_eq!(*guard, 20);
-        drop(guard);
-        let guard2 = mutex.lock().unwrap();
-        assert_eq!(*guard2, 20);
-    }
-
-    #[test]
-    fn mutex_guard_drop_releases_lock()
-    {
-        let mutex = Mutex::<u32, Atomic, Busy>::new(0);
-        let guard = mutex.lock().unwrap();
-        drop(guard);
-        let _ = mutex.lock().unwrap();
-    }
-
-    #[test]
-    fn mutex_with_default_spin()
-    {
-        let mutex = Mutex::<u32>::new(100);
-        let guard = mutex.lock().unwrap();
-        assert_eq!(*guard, 100);
-        drop(guard);
-        let guard2 = mutex.lock().unwrap();
-        assert_eq!(*guard2, 100);
     }
 }

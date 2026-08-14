@@ -1,21 +1,10 @@
 //! A busy‑wait spin strategy that uses [`core::hint::spin_loop`].
 
+use core::convert::Infallible;
+
 use crate::{ISpin, SpinResult};
 
-/// A spin strategy that executes a CPU pause instruction (or its equivalent).
-///
-/// This is suitable for short‑term spinning where yielding to the OS is
-/// unnecessary and might be too costly.
-///
-/// # Examples
-/// ```
-/// # use resync::ISpin;
-/// use resync::SpinResult;
-/// use resync::spin::Busy;
-///
-/// let spin = Busy;
-/// assert_eq!(spin.spin(), SpinResult::Ok);
-/// ```
+/// A spin strategy that executes a CPU pause instruction.
 #[allow(missing_debug_implementations)]
 pub struct Busy;
 
@@ -29,14 +18,12 @@ impl core::default::Default for Busy
 
 impl ISpin for Busy
 {
-    /// Issues a [`core::hint::spin_loop`] hint and returns [`SpinResult::Ok`].
-    ///
-    /// # Returns
-    /// Always [`SpinResult::Ok`].
-    fn spin(&self) -> SpinResult
+    type Error = Infallible;
+
+    fn spin(&self) -> SpinResult<Self::Error>
     {
         core::hint::spin_loop();
-        SpinResult::Ok
+        Ok(())
     }
 }
 
@@ -49,6 +36,6 @@ mod tests
     fn busy_spin_returns_ok()
     {
         let spin = Busy;
-        assert_eq!(spin.spin(), SpinResult::Ok);
+        assert_eq!(spin.spin(), Ok(()));
     }
 }

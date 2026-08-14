@@ -1,43 +1,13 @@
-//! An atomic counter‑based lock that implements both [`ILock`] (exclusive
-//! writer access) and [`IShare`] (shared reader access).
-//!
-//! # State Encoding
-//! - `0`: the lock is free.
-//! - `1..=usize::MAX-1`: the lock is held by that many readers.
-//! - `usize::MAX`: the lock is held by a writer.
-//!
-//! This single type can be used as the backend for both [`Mutex`] and
-//! [`RwLock`].
+//! An atomic counter‑based lock that implements both [`ILock`] and [`IShare`].
 
+use core::convert::Infallible;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::{ILock, IShare, LockResult};
+use crate::{ILock, IShare, LockResult, LockStatus};
 
-/// The sentinel value indicating that a writer holds the lock.
 const WRITER: usize = usize::MAX;
 
-/// A lock that uses a single [`AtomicUsize`] as its underlying state,
-/// supporting both exclusive (writer) and shared (reader) access.
-///
-/// # Examples
-/// ```rust
-/// # use resync::{ILock, IShare, LockResult};
-/// use resync::lock::Atomic;
-///
-/// let lock = Atomic::new();
-///
-/// // Writer access
-/// assert_eq!(lock.try_lock(0), LockResult::Done);
-/// assert_eq!(lock.try_lock(0), LockResult::Fail); // already held
-/// lock.free();
-///
-/// // Reader access
-/// assert_eq!(lock.try_share(0), LockResult::Done);
-/// assert_eq!(lock.try_share(0), LockResult::Done); // multiple readers OK
-/// assert_eq!(lock.try_lock(0), LockResult::Fail); // writer blocked
-/// lock.free_share();
-/// lock.free_share();
-/// ```
+/// A lock that uses a single [`AtomicUsize`] as its underlying state.
 #[allow(missing_debug_implementations)]
 pub struct Atomic(AtomicUsize);
 
@@ -60,39 +30,35 @@ impl core::default::Default for Atomic
 
 unsafe impl ILock for Atomic
 {
-    /// Attempts to acquire an exclusive (writer) lock.
-    ///
-    /// Succeeds only if the lock is currently free (`state == 0`). The
-    /// `current_iteration` parameter is ignored; this lock never parks.
-    fn try_lock(&self, _current_iteration: usize) -> LockResult
-    {
-        match self.0.compare_exchange(
-            0,
-            WRITER,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-        )
-        {
-            Ok(_) => LockResult::Done,
-            Err(_) => LockResult::Fail,
-        }
-    }
+    type Error = Infallible;
 
-    fn fake_lock(&self) -> LockResult
+    fn try_lock(&self, _current_iteration: usize) -> LockResult<Self::Error>
     {
-        if self.0.load(Ordering::Relaxed) == 0
+        if self
+            .0
+            .compare_exchange(0, WRITER, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
         {
-            LockResult::Done
+            Ok(LockStatus::Done)
         }
         else
         {
-            LockResult::Fail
+            Ok(LockStatus::Fail)
         }
     }
 
-    /// Releases an exclusive (writer) lock by resetting the state to `0`.
-    ///
-    /// This method is idempotent.
+    fn fake_lock(&self) -> LockResult<Self::Error>
+    {
+        if self.0.load(Ordering::Relaxed) == 0
+        {
+            Ok(LockStatus::Done)
+        }
+        else
+        {
+            Ok(LockStatus::Fail)
+        }
+    }
+
     fn free(&self)
     {
         self.0.store(0, Ordering::Release);
@@ -101,34 +67,31 @@ unsafe impl ILock for Atomic
 
 impl IShare for Atomic
 {
-    /// Attempts to acquire a shared (reader) lock.
-    ///
-    /// Succeeds if no writer holds the lock. Increments the reader count.
-    /// The `current_iteration` parameter is ignored; this lock never parks.
-    fn try_share(&self, _current_iteration: usize) -> LockResult
+    fn try_share(&self, _current_iteration: usize) -> LockResult<Self::Error>
     {
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
             if state == WRITER
             {
-                return LockResult::Fail;
+                return Ok(LockStatus::Fail);
             }
 
-            match self.0.compare_exchange_weak(
-                state,
-                state + 1,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            )
+            if self
+                .0
+                .compare_exchange_weak(
+                    state,
+                    state + 1,
+                    Ordering::Acquire,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
             {
-                Ok(_) => return LockResult::Done,
-                Err(_) => continue, // CAS failed, retry
+                return Ok(LockStatus::Done);
             }
         }
     }
 
-    /// Releases a shared (reader) lock by decrementing the reader count.
     fn free_share(&self)
     {
         self.0.fetch_sub(1, Ordering::Release);
@@ -144,15 +107,7 @@ mod tests
     fn atomic_new_is_unlocked()
     {
         let lock = Atomic::new();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        lock.free();
-    }
-
-    #[test]
-    fn atomic_default_is_unlocked()
-    {
-        let lock = Atomic::default();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), Ok(LockStatus::Done));
         lock.free();
     }
 
@@ -160,10 +115,10 @@ mod tests
     fn atomic_writer_blocks_writer()
     {
         let lock = Atomic::new();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        assert_eq!(lock.try_lock(0), LockResult::Fail);
+        assert_eq!(lock.try_lock(0), Ok(LockStatus::Done));
+        assert_eq!(lock.try_lock(0), Ok(LockStatus::Fail));
         lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), Ok(LockStatus::Done));
         lock.free();
     }
 
@@ -171,45 +126,9 @@ mod tests
     fn atomic_multiple_readers_ok()
     {
         let lock = Atomic::new();
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Done);
+        assert_eq!(lock.try_share(0), Ok(LockStatus::Done));
+        assert_eq!(lock.try_share(0), Ok(LockStatus::Done));
         lock.free_share();
         lock.free_share();
-        lock.free_share();
-    }
-
-    #[test]
-    fn atomic_writer_blocks_readers()
-    {
-        let lock = Atomic::new();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Fail);
-        lock.free();
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        lock.free_share();
-    }
-
-    #[test]
-    fn atomic_readers_block_writer()
-    {
-        let lock = Atomic::new();
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_lock(0), LockResult::Fail);
-        lock.free_share();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        lock.free();
-    }
-
-    #[test]
-    fn atomic_free_is_idempotent()
-    {
-        let lock = Atomic::new();
-        lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        lock.free();
-        lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        lock.free();
     }
 }

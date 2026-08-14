@@ -8,17 +8,11 @@ pub use busy::*;
 pub use os::*;
 pub use r#yield::*;
 
-/// Default spin strategy for current environment,
-/// selected by Resync. Good option if you just
-/// writing something platform-aware without
-/// deep-minding about synchronization.
+/// Default spin strategy for current environment.
 #[cfg(feature = "std")]
 pub type DefaultSpin = Os;
 
-/// Default spin strategy for current environment,
-/// selected by Resync. Good option if you just
-/// writing something platform-aware without
-/// deep-minding about synchronization.
+/// Default spin strategy for current environment.
 #[cfg(not(feature = "std"))]
 pub type DefaultSpin = Busy;
 
@@ -26,22 +20,27 @@ use crate::SpinResult;
 
 /// A trait for spin strategies used while waiting for a lock.
 ///
+/// # Associated Types
+/// - `Error`: the error type for spin aborts (timeout, etc.)
+///
 /// # Required Method
-/// - [`ISpin::spin`]: perform a single spin cycle (e.g., yield or CPU pause).
+/// - [`ISpin::spin`]: perform a single spin cycle.
 ///
-/// # Errors
-/// [`ISpin::spin`] returns a [`SpinResult`]:
-/// - [`SpinResult::Ok`]    – spin completed, continue waiting.
-/// - [`SpinResult::Abort`] – abort the waiting loop.
-///
-/// # Panics
-/// Implementations should not panic.
+/// # Returns
+/// - `Ok(())`: continue spinning
+/// - `Err(e)`: abort spinning
 pub trait ISpin
 where Self: core::default::Default
 {
+    /// The error type for spin aborts.
+    ///
+    /// Use `core::convert::Infallible` for spins that never abort.
+    type Error;
+
     /// Perform one spin iteration.
     ///
     /// # Returns
-    /// A [`SpinResult`] indicating whether to continue or abort.
-    fn spin(&self) -> SpinResult;
+    /// - `Ok(())`: continue spinning
+    /// - `Err(e)`: abort spinning
+    fn spin(&self) -> SpinResult<Self::Error>;
 }

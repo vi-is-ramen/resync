@@ -1,25 +1,14 @@
+use core::convert::Infallible;
+
 use crate::{ISpin, SpinResult};
 
 /// A spin strategy that calls [`std::thread::yield_now`].
-///
-/// This is appropriate for longer spins or when running on a preemptive
-/// scheduler, as it gives other threads a chance to run.
-///
-/// # Examples
-/// ```
-/// # use resync::ISpin;
-/// use resync::SpinResult;
-/// use resync::spin::Yield;
-///
-/// let spin = Yield;
-/// assert_eq!(spin.spin(), SpinResult::Ok);
-/// ```
 #[derive(Default, Debug)]
 pub struct Yield;
 
 impl Yield
 {
-    /// Creates new instance of [`Os`] spin strategy.
+    /// Creates new instance of [`Yield`] spin strategy.
     pub const fn new() -> Self
     {
         Self
@@ -28,21 +17,19 @@ impl Yield
 
 impl ISpin for Yield
 {
-    /// Yields the current thread and returns [`SpinResult::Ok`].
-    ///
-    /// # Returns
-    /// Always [`SpinResult::Ok`].
+    type Error = Infallible;
+
     #[cfg(feature = "std")]
-    fn spin(&self) -> SpinResult
+    fn spin(&self) -> SpinResult<Self::Error>
     {
         std::thread::yield_now();
-        SpinResult::Ok
+        Ok(())
     }
 
     #[cfg(not(feature = "std"))]
-    fn spin(&self) -> SpinResult
+    fn spin(&self) -> SpinResult<Self::Error>
     {
         core::hint::spin_loop();
-        SpinResult::Ok
+        Ok(())
     }
 }

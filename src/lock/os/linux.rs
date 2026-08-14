@@ -18,7 +18,7 @@
 
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use crate::{DEFAULT_EPSILON, ILock, IShare, LockResult};
+use crate::{DEFAULT_EPSILON, ILock, IShare, LockResult, LockStatus};
 
 /// Bit 31: writer holds the lock.
 const WRITER: u32 = 1 << 31;
@@ -69,7 +69,7 @@ impl Os
                     )
                     .is_ok()
                 {
-                    return LockResult::Done;
+                    return LockResult::Ok(LockStatus::Done);
                 }
                 continue;
             }
@@ -147,7 +147,7 @@ impl Os
                 )
                 .is_ok()
             {
-                return LockResult::Done;
+                return LockResult::Ok(LockStatus::Done);
             }
         }
     }
@@ -155,6 +155,8 @@ impl Os
 
 unsafe impl ILock for Os
 {
+    type Error = core::convert::Infallible;
+
     /// Attempts to acquire an exclusive (writer) lock.
     ///
     /// **Fast path**: if the lock is completely free, a single CAS from `0`
@@ -171,9 +173,9 @@ unsafe impl ILock for Os
             Ordering::Relaxed,
         )
         {
-            Ok(_) => LockResult::Done,
+            Ok(_) => LockResult::Ok(LockStatus::Done),
             Err(_) if current_iteration >= DEFAULT_EPSILON => self.lock_slow(),
-            Err(_) => LockResult::Fail,
+            Err(_) => LockResult::Ok(LockStatus::Fail),
         }
     }
 
@@ -181,11 +183,11 @@ unsafe impl ILock for Os
     {
         if self.0.load(Ordering::Relaxed) == 0
         {
-            LockResult::Done
+            LockResult::Ok(LockStatus::Done)
         }
         else
         {
-            LockResult::Fail
+            LockResult::Ok(LockStatus::Fail)
         }
     }
 
@@ -237,7 +239,7 @@ impl IShare for Os
                 }
                 else
                 {
-                    LockResult::Fail
+                    LockResult::Ok(LockStatus::Fail)
                 };
             }
 
@@ -250,7 +252,7 @@ impl IShare for Os
                 }
                 else
                 {
-                    LockResult::Fail
+                    LockResult::Ok(LockStatus::Fail)
                 };
             }
 
@@ -262,7 +264,7 @@ impl IShare for Os
                 Ordering::Relaxed,
             )
             {
-                Ok(_) => return LockResult::Done,
+                Ok(_) => return LockResult::Ok(LockStatus::Done),
                 Err(_) => continue,
             }
         }
@@ -336,10 +338,10 @@ mod tests
     fn os_writer_acquires()
     {
         let lock = Os::new();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        assert_eq!(lock.try_lock(0), LockResult::Fail);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Fail));
         lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
         lock.free();
     }
 
@@ -347,9 +349,9 @@ mod tests
     fn os_multiple_readers()
     {
         let lock = Os::new();
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Done);
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Done));
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Done));
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Done));
         lock.free_share();
         lock.free_share();
         lock.free_share();
@@ -359,10 +361,10 @@ mod tests
     fn os_writer_blocks_readers()
     {
         let lock = Os::new();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
-        assert_eq!(lock.try_share(0), LockResult::Fail);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Fail));
         lock.free();
-        assert_eq!(lock.try_share(0), LockResult::Done);
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Done));
         lock.free_share();
     }
 
@@ -370,10 +372,10 @@ mod tests
     fn os_readers_block_writer()
     {
         let lock = Os::new();
-        assert_eq!(lock.try_share(0), LockResult::Done);
-        assert_eq!(lock.try_lock(0), LockResult::Fail);
+        assert_eq!(lock.try_share(0), LockResult::Ok(LockStatus::Done));
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Fail));
         lock.free_share();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
         lock.free();
     }
 
@@ -389,7 +391,7 @@ mod tests
             // Acquire writer lock
             loop
             {
-                if writer_lock.try_lock(0) == LockResult::Done
+                if writer_lock.try_lock(0) == LockResult::Ok(LockStatus::Done)
                 {
                     break;
                 }
@@ -404,7 +406,7 @@ mod tests
         let reader = thread::spawn(move || {
             loop
             {
-                if reader_lock.try_share(0) == LockResult::Done
+                if reader_lock.try_share(0) == LockResult::Ok(LockStatus::Done)
                 {
                     break;
                 }
@@ -423,10 +425,10 @@ mod tests
     {
         let lock = Os::new();
         lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
         lock.free();
         lock.free();
-        assert_eq!(lock.try_lock(0), LockResult::Done);
+        assert_eq!(lock.try_lock(0), LockResult::Ok(LockStatus::Done));
         lock.free();
     }
 }
