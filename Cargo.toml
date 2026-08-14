@@ -1,6 +1,6 @@
 [package]
 name = "resync"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 workspace = "testing/util"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
