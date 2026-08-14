@@ -29,10 +29,13 @@ pub struct Mutex<
     T,
     L: crate::ILock = crate::lock::Atomic,
     S: crate::ISpin = crate::spin::DefaultSpin,
+    P: crate::IPark = crate::park::DefaultPark,
+    const EPSILON: usize = 10,
 > {
     inner: UnsafeCell<T>,
     lock:  L,
     spin:  S,
+    park:  P,
 }
 
 unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Sync
@@ -40,8 +43,17 @@ unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Sync
 {
 }
 
-impl<T: core::default::Default, L: crate::ILock, S: crate::ISpin>
-    core::default::Default for Mutex<T, L, S>
+unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Send
+    for Mutex<T, L, S>
+{
+}
+
+impl<
+    T: core::default::Default,
+    L: crate::ILock,
+    S: crate::ISpin,
+    P: crate::IPark,
+> core::default::Default for Mutex<T, L, S, P>
 {
     fn default() -> Self
     {
@@ -49,6 +61,7 @@ impl<T: core::default::Default, L: crate::ILock, S: crate::ISpin>
             inner: UnsafeCell::new(T::default()),
             lock:  L::default(),
             spin:  S::default(),
+            park:  P::default(),
         }
     }
 }
@@ -92,7 +105,8 @@ impl<'a, T, L: crate::ILock> core::ops::DerefMut for MutexGuard<'a, T, L>
     }
 }
 
-impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
+impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
+    Mutex<T, L, S, P, EPSILON>
 {
     /// Creates a new mutex protecting the given `value`.
     ///
@@ -104,6 +118,7 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
             inner: UnsafeCell::new(value),
             lock:  L::default(),
             spin:  S::default(),
+            park:  P::default(),
         }
     }
 
@@ -145,8 +160,11 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
     /// pause).
     pub fn lock(&self) -> Option<MutexGuard<'_, T, L>>
     {
+        let mut iterations = 0usize;
         loop
         {
+            iterations += 1;
+
             match self.lock.try_lock()
             {
                 LockResult::Abort => return None,
@@ -159,7 +177,15 @@ impl<T, L: crate::ILock, S: crate::ISpin> Mutex<T, L, S>
                 },
                 LockResult::Fail => match self.spin.spin()
                 {
-                    SpinResult::Ok => continue,
+                    SpinResult::Ok =>
+                    {
+                        if iterations >= EPSILON
+                        {
+                            iterations = 0;
+                            self.park.park();
+                        }
+                        continue
+                    },
                     SpinResult::Abort => return None,
                 },
             }

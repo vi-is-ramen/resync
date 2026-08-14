@@ -40,6 +40,9 @@ pub struct RwLock<
     spin:  S,
 }
 
+unsafe impl<T, L: IShare, S: ISpin> core::marker::Sync for RwLock<T, L, S> {}
+unsafe impl<T, L: IShare, S: ISpin> core::marker::Send for RwLock<T, L, S> {}
+
 impl<T: core::default::Default, L: IShare, S: ISpin> core::default::Default
     for RwLock<T, L, S>
 {

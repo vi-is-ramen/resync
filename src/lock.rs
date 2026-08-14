@@ -9,10 +9,11 @@
 
 mod atomic;
 mod nested;
+mod os;
 
-pub use crate::os::lock::*;
 pub use atomic::*;
 pub use nested::*;
+pub use os::*;
 
 /// Default lock strategy for current environment,
 /// selected by Resync. Good option if you just

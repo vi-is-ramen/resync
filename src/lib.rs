@@ -14,14 +14,14 @@
 extern crate libc;
 
 pub mod lock;
-#[cfg(feature = "std")]
-mod os;
+pub mod park;
 mod prim;
 mod result;
 pub mod share;
 pub mod spin;
 
 pub use lock::ILock;
+pub use park::IPark;
 pub use prim::{Barrier, Gate, Mutex, MutexGuard, RwLock, RwMut, RwRef};
 pub use result::*;
 pub use share::IShare;
@@ -30,14 +30,3 @@ pub use spin::ISpin;
 #[doc = include_str!("../markdown/book.md")]
 pub mod guide
 {}
-
-#[cfg(not(feature = "std"))]
-mod os
-{
-    pub mod lock
-    {}
-    pub mod share
-    {}
-    pub mod spin
-    {}
-}

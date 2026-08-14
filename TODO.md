@@ -1,4 +1,4 @@
-- finish testing suite (integration tests)
++ finish testing suite (integration tests)
 - implement benchmarking suite
 - write mdBook and set up deployment to GitHub Pages
 - add Windows and MacOS `ILock` implementations

@@ -11,9 +11,10 @@
 //! - [`Atomic`]: a reader‑writer lock based on an atomic counter.
 
 mod atomic;
+mod os;
 
-pub use crate::os::share::*;
 pub use atomic::*;
+pub use os::*;
 
 /// Default share strategy for current environment,
 /// selected by Resync. Good option if you just

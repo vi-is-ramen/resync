@@ -9,15 +9,15 @@ use crate::{ISpin, SpinResult};
 /// ```
 /// # use resync::ISpin;
 /// use resync::SpinResult;
-/// use resync::spin::Os;
+/// use resync::spin::Yield;
 ///
-/// let spin = Os;
+/// let spin = Yield;
 /// assert_eq!(spin.spin(), SpinResult::Ok);
 /// ```
 #[derive(Default, Debug)]
-pub struct Os;
+pub struct Yield;
 
-impl Os
+impl Yield
 {
     /// Creates new instance of [`Os`] spin strategy.
     pub const fn new() -> Self
@@ -26,7 +26,7 @@ impl Os
     }
 }
 
-impl ISpin for Os
+impl ISpin for Yield
 {
     /// Yields the current thread and returns [`SpinResult::Ok`].
     ///

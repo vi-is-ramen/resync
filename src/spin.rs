@@ -1,10 +1,12 @@
 //! Spin strategies for wait loops.
 
 mod busy;
-
-pub use crate::os::spin::*;
+mod os;
+mod r#yield;
 
 pub use busy::*;
+pub use os::*;
+pub use r#yield::*;
 
 /// Default spin strategy for current environment,
 /// selected by Resync. Good option if you just

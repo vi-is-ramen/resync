@@ -18,6 +18,9 @@ libc = { version = "0.2", optional = true }
 [build-dependencies]
 rustversion = "1"
 
+[dev-dependencies]
+criterion = "0.8"
+
 [features]
 default = [ "std" ]
 std = [ "dep:libc" ]
@@ -26,3 +29,8 @@ std = [ "dep:libc" ]
 unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)', 'cfg(beta)', 'cfg(dev)'] }
 missing_docs = 'deny'
 missing_debug_implementations = 'deny'
+
+[[bench]]
+name = "mutex"
+harness = false
+required-features = []
