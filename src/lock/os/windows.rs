@@ -10,8 +10,6 @@
 //! `CRITICAL_SECTION` but lighter) and automatically parks waiters via
 //! the kernel when contended.
 
-use core::sync::atomic::{AtomicUsize, Ordering};
-
 use crate::{ILock, IShare, LockResult};
 
 /// Windows SRWLOCK‑based reader‑writer lock.
@@ -68,7 +66,7 @@ unsafe impl ILock for Os
             )
         };
 
-        if result != 0
+        if result
         {
             LockResult::Done
         }
@@ -116,7 +114,7 @@ impl IShare for Os
             )
         };
 
-        if result != 0
+        if result
         {
             LockResult::Done
         }
