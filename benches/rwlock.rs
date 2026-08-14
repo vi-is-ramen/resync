@@ -31,6 +31,8 @@ impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
         T,
         resync::share::DefaultShare,
         resync::spin::DefaultSpin,
+        resync::park::DefaultPark,
+        10,
     >
     where Self: 'a;
     type WriteGuard<'a>
@@ -39,6 +41,8 @@ impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
         T,
         resync::share::DefaultShare,
         resync::spin::DefaultSpin,
+        resync::park::DefaultPark,
+        10,
     >
     where Self: 'a;
 
