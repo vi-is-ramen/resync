@@ -50,14 +50,18 @@ use crate::{ISpin, SpinResult};
 ///
 /// [`wait`]: Barrier::wait
 #[allow(missing_debug_implementations)]
-pub struct Barrier<S: ISpin = crate::spin::DefaultSpin>
-{
+pub struct Barrier<
+    S: ISpin = crate::spin::DefaultSpin,
+    P: crate::IPark = crate::park::DefaultPark,
+    const EPSILON: usize = 10,
+> {
     count: usize,
     state: AtomicUsize, // high 32 bits: generation, low 32 bits: arrived count
     spin:  S,
+    park:  P,
 }
 
-impl<S: ISpin> Barrier<S>
+impl<S: ISpin, P: crate::IPark, const EPSILON: usize> Barrier<S, P, EPSILON>
 {
     /// Creates a new barrier that will block until `count` threads call
     /// [`wait`].
@@ -71,6 +75,7 @@ impl<S: ISpin> Barrier<S>
             count,
             state: AtomicUsize::new(0),
             spin: S::default(),
+            park: P::default(),
         })
     }
 
@@ -128,6 +133,7 @@ impl<S: ISpin> Barrier<S>
                     )
                     .is_ok()
                 {
+                    self.park.free();
                     return true; // this thread was the last
                 }
                 // CAS failed: another thread beat us to the reset; we retry.
@@ -147,14 +153,27 @@ impl<S: ISpin> Barrier<S>
                     )
                     .is_ok()
                 {
+                    let mut iteration = 0usize;
+
                     // Now spin until the generation changes (i.e., barrier
                     // resets).
                     while (self.state.load(Ordering::SeqCst) >> 32)
                         == generation
                     {
+                        iteration += 1;
+
                         match self.spin.spin()
                         {
-                            SpinResult::Ok => continue,
+                            SpinResult::Ok =>
+                            {
+                                if iteration >= EPSILON
+                                {
+                                    iteration = 0;
+                                    self.park.park()
+                                }
+
+                                continue
+                            },
                             SpinResult::Abort =>
                             {
                                 panic!("spin abort during barrier wait");
@@ -184,7 +203,8 @@ impl<S: ISpin> Barrier<S>
     }
 }
 
-impl<S: ISpin> core::default::Default for Barrier<S>
+impl<S: ISpin, P: crate::IPark, const EPSILON: usize> core::default::Default
+    for Barrier<S, P, EPSILON>
 {
     /// Creates a barrier with a count of 1 (i.e., does not block).
     ///

@@ -38,13 +38,13 @@ pub struct Mutex<
     park:  P,
 }
 
-unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Sync
-    for Mutex<T, L, S>
+unsafe impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark>
+    core::marker::Sync for Mutex<T, L, S, P>
 {
 }
 
-unsafe impl<T, L: crate::ILock, S: crate::ISpin> core::marker::Send
-    for Mutex<T, L, S>
+unsafe impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark>
+    core::marker::Send for Mutex<T, L, S, P>
 {
 }
 
@@ -70,22 +70,26 @@ impl<
 ///
 /// The guard releases the lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct MutexGuard<'a, T, L: crate::ILock>
+pub struct MutexGuard<'a, T, L: crate::ILock, P: crate::IPark>
 {
     data: *mut T,
     lock: &'a L,
+    park: &'a P,
 }
 
-impl<'a, T, L: crate::ILock> core::ops::Drop for MutexGuard<'a, T, L>
+impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::Drop
+    for MutexGuard<'a, T, L, P>
 {
     /// Releases the lock when the guard goes out of scope.
     fn drop(&mut self)
     {
         self.lock.free();
+        self.park.free();
     }
 }
 
-impl<'a, T, L: crate::ILock> core::ops::Deref for MutexGuard<'a, T, L>
+impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::Deref
+    for MutexGuard<'a, T, L, P>
 {
     type Target = T;
 
@@ -96,7 +100,8 @@ impl<'a, T, L: crate::ILock> core::ops::Deref for MutexGuard<'a, T, L>
     }
 }
 
-impl<'a, T, L: crate::ILock> core::ops::DerefMut for MutexGuard<'a, T, L>
+impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::DerefMut
+    for MutexGuard<'a, T, L, P>
 {
     fn deref_mut(&mut self) -> &mut Self::Target
     {
@@ -132,7 +137,7 @@ impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
     ///
     /// # Panics
     /// This method does not panic.
-    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L>>
+    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L, P>>
     {
         match self.lock.try_lock()
         {
@@ -140,6 +145,7 @@ impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
             LockResult::Done => Some(MutexGuard {
                 data: self.inner.get(),
                 lock: &self.lock,
+                park: &self.park,
             }),
             LockResult::Fail => None,
         }
@@ -158,7 +164,7 @@ impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
     /// This method does not panic, but may loop forever if the lock never
     /// becomes available (though the spin strategy will eventually yield or
     /// pause).
-    pub fn lock(&self) -> Option<MutexGuard<'_, T, L>>
+    pub fn lock(&self) -> Option<MutexGuard<'_, T, L, P>>
     {
         let mut iterations = 0usize;
         loop
@@ -173,6 +179,7 @@ impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
                     return Some(MutexGuard {
                         data: self.inner.get(),
                         lock: &self.lock,
+                        park: &self.park,
                     });
                 },
                 LockResult::Fail => match self.spin.spin()

@@ -16,11 +16,15 @@ trait Mutex<T>: Send + Sync + 'static
     fn lock(&self) -> Self::Guard<'_>;
 }
 
-impl<T: Send + 'static, L: 'static + resync::ILock, S: 'static + resync::ISpin>
-    Mutex<T> for resync::Mutex<T, L, S>
+impl<
+    T: Send + 'static,
+    L: 'static + resync::ILock,
+    S: 'static + resync::ISpin,
+    P: 'static + resync::IPark,
+> Mutex<T> for resync::Mutex<T, L, S, P>
 {
     type Guard<'a>
-        = resync::MutexGuard<'a, T, L>
+        = resync::MutexGuard<'a, T, L, P>
     where Self: 'a;
     fn new(x: T) -> Self
     {
