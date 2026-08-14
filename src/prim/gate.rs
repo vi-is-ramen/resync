@@ -2,49 +2,41 @@
 
 use crate::{ILock, ISpin, LockResult, SpinResult};
 
-/// A gate is a one-shot synchronization primitive that allows one or more
-/// threads to block until another thread signals them via [`open`].
+/// A gate is a one-shot synchronization primitive that allows threads to
+/// block until another thread signals them via [`open`](Gate::open).
 ///
-/// This is useful for scenarios where a single event must occur before
-/// proceeding, such as:
-/// - A kernel module waiting for a device to be ready.
-/// - A thread waiting for initialisation to complete.
-/// - One-time configuration or setup phases.
+/// Once opened, the gate remains open forever.
 ///
-/// Once opened, the gate remains open forever. Attempts to wait after opening
-/// return immediately.
+/// # Semantics
+///
+/// A gate is "closed" when the inner lock is held, and "open" when the
+/// inner lock is free. `wait()` spins until the lock becomes free, while
+/// `open()` releases the lock.
+///
+/// # Type Parameters
+/// - `L`: the lock type (must implement [`ILock`])
+/// - `S`: the spin strategy (must implement [`ISpin`])
 ///
 /// # Examples
 ///
 /// ```ignore
-/// # use resync::spin::Os;
+/// use resync::lock::Atomic;
+/// use resync::spin::Busy;
 /// use resync::Gate;
 /// use std::thread;
+/// use std::sync::Arc;
 ///
-/// static gate: Gate<Os> = Gate::new();
-/// let g = &gate;
+/// let gate = Arc::new(Gate::<Atomic, Busy>::new().unwrap());
+/// let g = Arc::clone(&gate);
 ///
 /// let handle = thread::spawn(move || {
 ///     // Do some work...
-///     g.open(); // Signal that work is done
+///     g.open();
 /// });
 ///
-/// // Block until the gate is opened
-/// gate.wait();
-/// // Proceed...
+/// gate.wait().unwrap();
 /// handle.join().unwrap();
 /// ```
-///
-/// # Type Parameters
-/// - `S`: the spin strategy used while waiting (must implement [`ISpin`]).
-///   Defaults to [`crate::spin::DefaultSpin`].
-///
-/// # Limitations
-/// - This is a spin-based primitive: waiting threads consume CPU cycles.
-/// - It is one-shot; it cannot be reset.
-///
-/// [`open`]: Gate::open
-// TODO: add generation semantics to allow reuse
 #[allow(missing_debug_implementations)]
 pub struct Gate<
     L: ILock = crate::lock::Atomic,
@@ -57,6 +49,9 @@ pub struct Gate<
 impl<L: ILock, S: ISpin> Gate<L, S>
 {
     /// Creates a new closed gate.
+    ///
+    /// The gate is initialized in the "closed" state by acquiring the inner
+    /// lock. Subsequent calls to `wait()` will spin until `open()` is called.
     pub fn new() -> Option<Self>
     {
         let this = Self {
@@ -64,7 +59,7 @@ impl<L: ILock, S: ISpin> Gate<L, S>
             spin: S::default(),
         };
 
-        if let LockResult::Done = this.lock.try_lock()
+        if let LockResult::Done = this.lock.try_lock(0)
         {
             Some(this)
         }
@@ -76,59 +71,42 @@ impl<L: ILock, S: ISpin> Gate<L, S>
 
     /// Blocks the current thread until the gate is opened.
     ///
-    /// If the gate is already open, this returns immediately.
+    /// This method spins until the inner lock becomes free (i.e., `open()`
+    /// has been called). If the gate is already open, this returns immediately.
     ///
     /// # Errors
     ///
-    /// This method returns [`Err`] if spin stratefy returned Fail.
-    #[allow(clippy::result_unit_err)] // NOTE: intended
+    /// Returns `Err(())` if the spin strategy returns `Abort` or the lock
+    /// reports `Abort`.
+    #[allow(clippy::result_unit_err)]
     pub fn wait(&self) -> Result<(), ()>
     {
-        let result;
-
         loop
         {
             match self.lock.fake_lock()
             {
-                LockResult::Done =>
-                {
-                    result = Ok(());
-                    break
-                },
+                LockResult::Done => return Ok(()),
                 LockResult::Fail => match self.spin.spin()
                 {
                     SpinResult::Ok => continue,
-                    SpinResult::Abort =>
-                    {
-                        result = Err(());
-                        break
-                    },
+                    SpinResult::Abort => return Err(()),
                 },
-                LockResult::Abort =>
-                {
-                    result = Err(());
-                    break
-                },
+                LockResult::Abort => return Err(()),
             }
         }
-
-        result
     }
 
     /// Opens the gate, releasing all waiting threads.
     ///
-    /// Subsequent calls to `wait` will return immediately.
+    /// This releases the inner lock, allowing all threads blocked in `wait()`
+    /// to proceed. Subsequent calls to `wait()` will return immediately.
     ///
     /// If the gate is already open, this does nothing.
     pub fn open(&self)
     {
         self.lock.free();
+        self.lock.wake_all();
     }
-
-    // NOTE: no `is_open` or similar method because of TOCTOU danger.
-    // NOTE: no `try_wait` method because of useless and TOCTOU danger.
-
-    // TODO: Close/reset method
 }
 
 impl<L: ILock, S: ISpin> core::default::Default for Gate<L, S>
@@ -171,7 +149,7 @@ mod tests
         let handle = thread::spawn(move || {
             g.open();
         });
-        gate.wait().unwrap(); // should block until opened
+        gate.wait().unwrap();
         handle.join().unwrap();
         assert!(matches!(gate.lock.fake_lock(), LockResult::Done));
     }
@@ -197,12 +175,32 @@ mod tests
                 g.wait().unwrap();
             }));
         }
-        // open after a small delay
         thread::sleep(std::time::Duration::from_millis(50));
         gate.open();
         for h in handles
         {
             h.join().unwrap();
         }
+    }
+
+    #[test]
+    fn gate_open_is_idempotent()
+    {
+        let gate = Gate::<Atomic, Busy>::new().unwrap();
+        gate.open();
+        gate.open();
+        gate.open();
+        assert!(matches!(gate.lock.fake_lock(), LockResult::Done));
+    }
+
+    #[test]
+    fn gate_wait_after_open_returns_immediately()
+    {
+        let gate = Gate::<Atomic, Busy>::new().unwrap();
+        gate.open();
+        // All subsequent waits should return immediately
+        gate.wait().unwrap();
+        gate.wait().unwrap();
+        gate.wait().unwrap();
     }
 }

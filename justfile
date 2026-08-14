@@ -13,7 +13,7 @@ test:
 clean:
     @cargo clean
 
-pre-commit: clean check test
+pre-commit: check test
 
 docs:
     @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open

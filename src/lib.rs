@@ -6,22 +6,19 @@
 //! Guidebook: [`guide`]
 //!
 //! # Features
-//! - `std` (enabled by default): enables OS integration (requires libstd).
+//! - `std` (enabled by default): enables OS‑level locks via futex.
 
-// don't link to libstd if `std` feature disabled
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]
 extern crate libc;
 
 pub mod lock;
-pub mod park;
 mod prim;
 mod result;
 pub mod share;
 pub mod spin;
 
-pub use lock::ILock;
-pub use park::IPark;
+pub use lock::{DEFAULT_EPSILON, ILock};
 pub use prim::{Barrier, Gate, Mutex, MutexGuard, RwLock, RwMut, RwRef};
 pub use result::*;
 pub use share::IShare;

@@ -32,6 +32,14 @@ impl ISpin for Yield
     ///
     /// # Returns
     /// Always [`SpinResult::Ok`].
+    #[cfg(feature = "std")]
+    fn spin(&self) -> SpinResult
+    {
+        std::thread::yield_now();
+        SpinResult::Ok
+    }
+
+    #[cfg(not(feature = "std"))]
     fn spin(&self) -> SpinResult
     {
         core::hint::spin_loop();

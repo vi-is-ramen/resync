@@ -8,12 +8,16 @@ macro_rules! x {
     };
 }
 
+x!("linux" linux);
+x!("windows" windows);
+x!("macos" macos);
+
 /// Fallback atomic implementation as this platform isn't supported by Resync.
-/// Same as [`crate::lock::Atomic`].
+/// Same as [`crate::lock::Atomic`], which implements both [`crate::ILock`]
+/// and [`crate::IShare`].
 #[cfg(not(any(
-// list of supported platforms:
-    // target_os = "linux",
-    // target_os = "windows",
-    // target_os = "macos",
+    target_os = "linux",
+    target_os = "windows",
+    target_os = "macos",
 )))]
 pub type Os = crate::lock::Atomic;

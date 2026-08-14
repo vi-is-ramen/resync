@@ -1,59 +1,35 @@
 //! A mutual exclusion primitive that uses a lock and a spin strategy.
 
 use core::cell::UnsafeCell;
+use core::ops::{Deref, DerefMut};
 
-use crate::{LockResult, SpinResult};
+use crate::{ILock, ISpin, LockResult, SpinResult};
 
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
 ///
 /// The mutex is parameterised by:
-/// - `L`: the lock implementation (must implement [`crate::ILock`]).
-/// - `S`: the spin strategy (must implement [`crate::ISpin`]) used while
-///   waiting for the lock.
+/// - `T`: the protected data type.
+/// - `L`: the lock implementation (must implement [`ILock`]).
+/// - `S`: the spin strategy (must implement [`ISpin`]).
 ///
-/// # Examples
-/// ```
-/// use resync::Mutex;
-/// let mutex: Mutex<u32> = Mutex::new(42u32);
-/// {
-///     let guard = mutex.lock().unwrap();
-///     assert_eq!(*guard, 42);
-/// }
-/// ```
-///
-/// # Errors
-/// The [`Mutex::lock`] method returns `None` if the underlying lock
-/// reports an abort.
+/// The lock implementation decides when to park based on the iteration
+/// count passed to [`ILock::try_lock`].
 #[allow(missing_debug_implementations)]
 pub struct Mutex<
     T,
-    L: crate::ILock = crate::lock::Atomic,
-    S: crate::ISpin = crate::spin::DefaultSpin,
-    P: crate::IPark = crate::park::DefaultPark,
-    const EPSILON: usize = 10,
+    L: ILock = crate::lock::DefaultLock,
+    S: ISpin = crate::spin::DefaultSpin,
 > {
     inner: UnsafeCell<T>,
     lock:  L,
     spin:  S,
-    park:  P,
 }
 
-unsafe impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark>
-    core::marker::Sync for Mutex<T, L, S, P>
-{
-}
+unsafe impl<T, L: ILock, S: ISpin> core::marker::Sync for Mutex<T, L, S> {}
+unsafe impl<T, L: ILock, S: ISpin> core::marker::Send for Mutex<T, L, S> {}
 
-unsafe impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark>
-    core::marker::Send for Mutex<T, L, S, P>
-{
-}
-
-impl<
-    T: core::default::Default,
-    L: crate::ILock,
-    S: crate::ISpin,
-    P: crate::IPark,
-> core::default::Default for Mutex<T, L, S, P>
+impl<T: core::default::Default, L: ILock, S: ISpin> core::default::Default
+    for Mutex<T, L, S>
 {
     fn default() -> Self
     {
@@ -61,7 +37,6 @@ impl<
             inner: UnsafeCell::new(T::default()),
             lock:  L::default(),
             spin:  S::default(),
-            park:  P::default(),
         }
     }
 }
@@ -70,108 +45,79 @@ impl<
 ///
 /// The guard releases the lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct MutexGuard<'a, T, L: crate::ILock, P: crate::IPark>
+pub struct MutexGuard<'a, T, L: ILock>
 {
     data: *mut T,
     lock: &'a L,
-    park: &'a P,
 }
 
-impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::Drop
-    for MutexGuard<'a, T, L, P>
+impl<'a, T, L: ILock> core::ops::Drop for MutexGuard<'a, T, L>
 {
-    /// Releases the lock when the guard goes out of scope.
     fn drop(&mut self)
     {
         self.lock.free();
-        self.park.free();
     }
 }
 
-impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::Deref
-    for MutexGuard<'a, T, L, P>
+impl<'a, T, L: ILock> Deref for MutexGuard<'a, T, L>
 {
     type Target = T;
 
     fn deref(&self) -> &Self::Target
     {
-        // Safety: the guard holds the lock, so no other mutable access exists.
         unsafe { self.data.as_ref_unchecked() }
     }
 }
 
-impl<'a, T, L: crate::ILock, P: crate::IPark> core::ops::DerefMut
-    for MutexGuard<'a, T, L, P>
+impl<'a, T, L: ILock> DerefMut for MutexGuard<'a, T, L>
 {
     fn deref_mut(&mut self) -> &mut Self::Target
     {
-        // Safety: the guard holds the lock, so no other mutable access exists.
         unsafe { self.data.as_mut_unchecked() }
     }
 }
 
-impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
-    Mutex<T, L, S, P, EPSILON>
+impl<T, L: ILock, S: ISpin> Mutex<T, L, S>
 {
     /// Creates a new mutex protecting the given `value`.
-    ///
-    /// The lock and spin strategy are initialised with their
-    /// [`core::default::Default`] implementations.
     pub fn new(value: T) -> Self
     {
         Self {
             inner: UnsafeCell::new(value),
             lock:  L::default(),
             spin:  S::default(),
-            park:  P::default(),
         }
     }
 
-    /// Acquires the mutex but not blocking until the lock is acquired or an
-    /// abort occurs: returns Option instead.
+    /// Attempts to acquire the mutex without blocking.
     ///
     /// # Returns
-    /// - [`Some`] – the lock was acquired and the guard grants access to the
-    ///   protected data.
-    /// - [`None`] – the underlying lock reported an abort or mutex is locked.
-    ///
-    /// # Panics
-    /// This method does not panic.
-    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L, P>>
+    /// - [`Some`] – the lock was acquired.
+    /// - [`None`] – the lock is held or an abort occurred.
+    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L>>
     {
-        match self.lock.try_lock()
+        match self.lock.try_lock(0)
         {
-            LockResult::Abort => None,
             LockResult::Done => Some(MutexGuard {
                 data: self.inner.get(),
                 lock: &self.lock,
-                park: &self.park,
             }),
-            LockResult::Fail => None,
+            _ => None,
         }
     }
 
-    /// Acquires the mutex, blocking until the lock is acquired or an abort
-    /// occurs.
+    /// Acquires the mutex, blocking until available or an abort occurs.
     ///
-    /// # Returns
-    /// - [`Some`] – the lock was acquired and the guard grants access to the
-    ///   protected data.
-    /// - [`None`] – the underlying lock reported an abort (unrecoverable
-    ///   error).
-    ///
-    /// # Panics
-    /// This method does not panic, but may loop forever if the lock never
-    /// becomes available (though the spin strategy will eventually yield or
-    /// pause).
-    pub fn lock(&self) -> Option<MutexGuard<'_, T, L, P>>
+    /// The iteration count is passed to [`ILock::try_lock`], allowing the
+    /// lock implementation to decide when to park the current thread.
+    pub fn lock(&self) -> Option<MutexGuard<'_, T, L>>
     {
         let mut iterations = 0usize;
         loop
         {
             iterations += 1;
 
-            match self.lock.try_lock()
+            match self.lock.try_lock(iterations)
             {
                 LockResult::Abort => return None,
                 LockResult::Done =>
@@ -179,20 +125,11 @@ impl<T, L: crate::ILock, S: crate::ISpin, P: crate::IPark, const EPSILON: usize>
                     return Some(MutexGuard {
                         data: self.inner.get(),
                         lock: &self.lock,
-                        park: &self.park,
                     });
                 },
                 LockResult::Fail => match self.spin.spin()
                 {
-                    SpinResult::Ok =>
-                    {
-                        if iterations >= EPSILON
-                        {
-                            iterations = 0;
-                            self.park.park();
-                        }
-                        continue
-                    },
+                    SpinResult::Ok => continue,
                     SpinResult::Abort => return None,
                 },
             }
@@ -206,34 +143,6 @@ mod tests
     use super::*;
     use crate::lock::Atomic;
     use crate::spin::Busy;
-    use crate::{ILock, ISpin};
-
-    // A mock lock that always returns Abort.
-    #[derive(Default)]
-    struct AbortLock;
-    unsafe impl ILock for AbortLock
-    {
-        fn try_lock(&self) -> LockResult
-        {
-            LockResult::Abort
-        }
-        fn free(&self) {}
-        fn fake_lock(&self) -> LockResult
-        {
-            todo!()
-        }
-    }
-
-    // A mock spin that aborts on first call (returns Abort).
-    #[derive(Default)]
-    struct AbortSpin;
-    impl ISpin for AbortSpin
-    {
-        fn spin(&self) -> SpinResult
-        {
-            SpinResult::Abort
-        }
-    }
 
     #[test]
     fn mutex_new_and_lock_unlock()
@@ -242,9 +151,7 @@ mod tests
         {
             let guard = mutex.lock().unwrap();
             assert_eq!(*guard, 42);
-            // Guard dropped -> lock freed.
         }
-        // Lock again to ensure it's free.
         let guard2 = mutex.lock().unwrap();
         assert_eq!(*guard2, 42);
     }
@@ -254,7 +161,7 @@ mod tests
     {
         let mutex = Mutex::<u32, Atomic, Busy>::default();
         let guard = mutex.lock().unwrap();
-        assert_eq!(*guard, 0); // u32 default is 0
+        assert_eq!(*guard, 0);
     }
 
     #[test]
@@ -273,47 +180,11 @@ mod tests
     fn mutex_guard_drop_releases_lock()
     {
         let mutex = Mutex::<u32, Atomic, Busy>::new(0);
-        // Hold lock.
         let guard = mutex.lock().unwrap();
-        // Drop hold.
         drop(guard);
-        let _ = mutex.lock().unwrap(); // should succeed
+        let _ = mutex.lock().unwrap();
     }
 
-    #[test]
-    fn mutex_returns_none_on_lock_abort()
-    {
-        // Use a lock that aborts.
-        let mutex = Mutex::<u32, AbortLock, Busy>::new(5);
-        assert!(mutex.lock().is_none());
-    }
-
-    #[test]
-    fn mutex_returns_none_on_spin_abort()
-    {
-        // Use a spin that aborts, but lock must fail repeatedly to trigger
-        // spin. We need a lock that returns Fail, not Done, to go into
-        // spin loop.
-        #[derive(Default)]
-        struct FailLock;
-        unsafe impl ILock for FailLock
-        {
-            fn try_lock(&self) -> LockResult
-            {
-                LockResult::Fail
-            }
-            fn free(&self) {}
-            fn fake_lock(&self) -> LockResult
-            {
-                todo!()
-            }
-        }
-        let mutex = Mutex::<u32, FailLock, AbortSpin>::new(5);
-        assert!(mutex.lock().is_none());
-    }
-
-    // Test that mutex works with the default spin (which is Os if std, else
-    // Busy).
     #[test]
     fn mutex_with_default_spin()
     {

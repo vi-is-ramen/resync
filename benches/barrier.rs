@@ -7,14 +7,12 @@ use criterion::{Bencher, Criterion};
 use std::sync::Arc;
 use std::thread;
 
-// ---------- Trait abstraction ----------
 trait Barrier: Send + Sync + 'static
 {
     fn new(count: usize) -> Self;
     fn wait(&self);
 }
 
-// ---------- resync implementation ----------
 impl Barrier for resync::Barrier<resync::spin::DefaultSpin>
 {
     fn new(count: usize) -> Self
@@ -28,7 +26,6 @@ impl Barrier for resync::Barrier<resync::spin::DefaultSpin>
     }
 }
 
-// ---------- std implementation ----------
 impl Barrier for std::sync::Barrier
 {
     fn new(count: usize) -> Self
@@ -42,7 +39,6 @@ impl Barrier for std::sync::Barrier
     }
 }
 
-// ---------- Bench function ----------
 fn gen_barrier_wait<B: Barrier>(b: &mut Bencher)
 {
     const THREADS: usize = 4;
@@ -56,7 +52,7 @@ fn gen_barrier_wait<B: Barrier>(b: &mut Bencher)
                 b.wait();
             }));
         }
-        barrier.wait(); // main thread
+        barrier.wait();
         for h in handles
         {
             h.join().unwrap();
@@ -64,7 +60,6 @@ fn gen_barrier_wait<B: Barrier>(b: &mut Bencher)
     });
 }
 
-// ---------- Criterion group ----------
 fn criterion_benchmark(c: &mut Criterion)
 {
     let mut group = c.benchmark_group("barrier");

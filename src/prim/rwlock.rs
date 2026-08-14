@@ -1,53 +1,37 @@
 //! A readers-writer lock that uses a spin strategy.
+//!
+//! `RwLock` requires its lock backend to implement [`IShare`], which extends
+//! [`ILock`]. Writer access is obtained via `ILock::try_lock` / `ILock::free`,
+//! while reader access is obtained via `IShare::try_share` /
+//! `IShare::free_share`.
 
 use core::cell::UnsafeCell;
+use core::ops::{Deref, DerefMut};
 
-use crate::{IPark, IShare, ISpin, LockResult, SpinResult};
+use crate::{IShare, ISpin, LockResult, SpinResult};
 
 /// A readers-writer lock primitive that protects a value of type `T`.
 ///
 /// The `RwLock` is parameterised by:
-/// - `T`: the data being protected.
+/// - `T`: the protected data type.
 /// - `L`: the shared lock implementation (must implement [`IShare`]).
-/// - `S`: the spin strategy (must implement [`ISpin`]) used while waiting.
-///
-/// # Examples
-/// ```
-/// use resync::RwLock;
-/// let lock: RwLock<u32> = RwLock::new(42u32);
-/// {
-///     let guard = lock.read().unwrap();
-///     assert_eq!(*guard, 42);
-/// }
-/// {
-///     let mut guard = lock.write().unwrap();
-///     *guard += 1;
-/// }
-/// ```
-///
-/// # Errors
-/// The [`RwLock::read`] and [`RwLock::write`] methods return `None` if the
-/// underlying lock reports `Abort` (unrecoverable error) or if the spin
-/// strategy aborts.
+/// - `S`: the spin strategy (must implement [`ISpin`]).
 #[allow(missing_debug_implementations)]
 pub struct RwLock<
     T,
-    L: IShare = crate::share::Atomic,
+    L: IShare = crate::share::DefaultShare,
     S: ISpin = crate::spin::DefaultSpin,
-    P: IPark = crate::park::DefaultPark,
-    const EPSILON: usize = 10,
 > {
     inner: UnsafeCell<T>,
     lock:  L,
     spin:  S,
-    park:  P,
 }
 
 unsafe impl<T, L: IShare, S: ISpin> core::marker::Sync for RwLock<T, L, S> {}
 unsafe impl<T, L: IShare, S: ISpin> core::marker::Send for RwLock<T, L, S> {}
 
-impl<T: core::default::Default, L: IShare, S: ISpin, P: IPark>
-    core::default::Default for RwLock<T, L, S, P>
+impl<T: core::default::Default, L: IShare, S: ISpin> core::default::Default
+    for RwLock<T, L, S>
 {
     fn default() -> Self
     {
@@ -55,85 +39,78 @@ impl<T: core::default::Default, L: IShare, S: ISpin, P: IPark>
             inner: UnsafeCell::new(T::default()),
             lock:  L::default(),
             spin:  S::default(),
-            park:  P::default(),
         }
     }
 }
 
-/// A guard that provides immutable access to the protected data.
-/// The guard releases the read lock when dropped.
+/// A guard that provides immutable (reader) access to the protected data.
+///
+/// The guard releases the shared lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct RwRef<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
+pub struct RwRef<'a, T, L: IShare, S: ISpin>
 {
     data: *const T,
-    lock: &'a RwLock<T, L, S, P, EPSILON>,
+    lock: &'a RwLock<T, L, S>,
 }
 
-/// A guard that provides mutable access to the protected data.
-/// The guard releases the write lock when dropped.
+/// A guard that provides mutable (writer) access to the protected data.
+///
+/// The guard releases the exclusive lock when dropped.
 #[allow(missing_debug_implementations)]
-pub struct RwMut<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
+pub struct RwMut<'a, T, L: IShare, S: ISpin>
 {
     data: *mut T,
-    lock: &'a RwLock<T, L, S, P, EPSILON>,
+    lock: &'a RwLock<T, L, S>,
 }
 
-impl<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize> core::ops::Drop
-    for RwRef<'a, T, L, S, P, EPSILON>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Drop for RwRef<'a, T, L, S>
 {
     fn drop(&mut self)
     {
-        self.lock.lock.free_read();
-        self.lock.park.free();
+        self.lock.lock.free_share();
     }
 }
 
-impl<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize> core::ops::Drop
-    for RwMut<'a, T, L, S, P, EPSILON>
+impl<'a, T, L: IShare, S: ISpin> core::ops::Drop for RwMut<'a, T, L, S>
 {
     fn drop(&mut self)
     {
-        self.lock.lock.free_write();
-        self.lock.park.free();
+        self.lock.lock.free();
     }
 }
 
-impl<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
-    core::ops::Deref for RwRef<'a, T, L, S, P, EPSILON>
+impl<'a, T, L: IShare, S: ISpin> Deref for RwRef<'a, T, L, S>
 {
     type Target = T;
 
     fn deref(&self) -> &Self::Target
     {
-        // Safety: the guard holds the read lock, so no mutable access exists.
+        // Safety: the guard holds the reader lock, so no writer exists.
         unsafe { self.data.as_ref_unchecked() }
     }
 }
 
-impl<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
-    core::ops::Deref for RwMut<'a, T, L, S, P, EPSILON>
+impl<'a, T, L: IShare, S: ISpin> Deref for RwMut<'a, T, L, S>
 {
     type Target = T;
 
     fn deref(&self) -> &Self::Target
     {
-        // Safety: the guard holds the write lock, so no other access exists.
+        // Safety: the guard holds the writer lock, so no other access exists.
         unsafe { self.data.as_ref_unchecked() }
     }
 }
 
-impl<'a, T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
-    core::ops::DerefMut for RwMut<'a, T, L, S, P, EPSILON>
+impl<'a, T, L: IShare, S: ISpin> DerefMut for RwMut<'a, T, L, S>
 {
     fn deref_mut(&mut self) -> &mut Self::Target
     {
-        // Safety: the guard holds the write lock, so no other access exists.
+        // Safety: the guard holds the writer lock, so no other access exists.
         unsafe { self.data.as_mut_unchecked() }
     }
 }
 
-impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
-    RwLock<T, L, S, P, EPSILON>
+impl<T, L: IShare, S: ISpin> RwLock<T, L, S>
 {
     /// Creates a new `RwLock` protecting the given `value`.
     pub fn new(value: T) -> Self
@@ -142,18 +119,17 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
             inner: UnsafeCell::new(value),
             lock:  L::default(),
             spin:  S::default(),
-            park:  P::default(),
         }
     }
 
-    /// Attempts to acquire a read lock without blocking.
+    /// Attempts to acquire a reader lock without blocking.
     ///
     /// # Returns
-    /// - `Some` – the read lock was acquired.
-    /// - `None` – the lock is currently held by a writer, or an abort occurred.
-    pub fn try_read(&self) -> Option<RwRef<'_, T, L, S, P, EPSILON>>
+    /// - `Some` – the reader lock was acquired.
+    /// - `None` – a writer holds the lock, or an abort occurred.
+    pub fn try_read(&self) -> Option<RwRef<'_, T, L, S>>
     {
-        match self.lock.try_read()
+        match self.lock.try_share(0)
         {
             LockResult::Done => Some(RwRef {
                 data: self.inner.get(),
@@ -163,14 +139,16 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
         }
     }
 
-    /// Acquires a read lock, spinning until it is acquired or an abort occurs.
-    pub fn read(&self) -> Option<RwRef<'_, T, L, S, P, EPSILON>>
+    /// Acquires a reader lock, spinning until available.
+    pub fn read(&self) -> Option<RwRef<'_, T, L, S>>
     {
         let mut iteration = 0usize;
 
         loop
         {
-            match self.lock.try_read()
+            iteration += 1;
+
+            match self.lock.try_share(iteration)
             {
                 LockResult::Done =>
                 {
@@ -182,25 +160,22 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
                 LockResult::Abort => return None,
                 LockResult::Fail => match self.spin.spin()
                 {
-                    SpinResult::Ok =>
-                    {
-                        if iteration >= EPSILON
-                        {
-                            iteration = 0;
-                            self.park.park();
-                        }
-                        continue
-                    },
+                    SpinResult::Ok => continue,
                     SpinResult::Abort => return None,
                 },
             }
         }
     }
 
-    /// Attempts to acquire a write lock without blocking.
-    pub fn try_write(&self) -> Option<RwMut<'_, T, L, S, P, EPSILON>>
+    /// Attempts to acquire a writer lock without blocking.
+    ///
+    /// # Returns
+    /// - `Some` – the writer lock was acquired.
+    /// - `None` – the lock is held (by readers or a writer), or an abort
+    ///   occurred.
+    pub fn try_write(&self) -> Option<RwMut<'_, T, L, S>>
     {
-        match self.lock.try_write()
+        match self.lock.try_lock(0)
         {
             LockResult::Done => Some(RwMut {
                 data: self.inner.get(),
@@ -210,8 +185,8 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
         }
     }
 
-    /// Acquires a write lock, spinning until it is acquired or an abort occurs.
-    pub fn write(&self) -> Option<RwMut<'_, T, L, S, P, EPSILON>>
+    /// Acquires a writer lock, spinning until available.
+    pub fn write(&self) -> Option<RwMut<'_, T, L, S>>
     {
         let mut iteration = 0usize;
 
@@ -219,7 +194,7 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
         {
             iteration += 1;
 
-            match self.lock.try_write()
+            match self.lock.try_lock(iteration)
             {
                 LockResult::Done =>
                 {
@@ -231,15 +206,7 @@ impl<T, L: IShare, S: ISpin, P: IPark, const EPSILON: usize>
                 LockResult::Abort => return None,
                 LockResult::Fail => match self.spin.spin()
                 {
-                    SpinResult::Ok =>
-                    {
-                        if iteration >= EPSILON
-                        {
-                            iteration = 0;
-                            self.park.park()
-                        }
-                        continue
-                    },
+                    SpinResult::Ok => continue,
                     SpinResult::Abort => return None,
                 },
             }

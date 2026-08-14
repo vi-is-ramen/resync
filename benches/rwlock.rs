@@ -9,7 +9,6 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 
-// ---------- Trait abstraction ----------
 trait RwLock<T>: Send + Sync + 'static
 {
     type ReadGuard<'a>: Deref<Target = T>
@@ -22,7 +21,6 @@ trait RwLock<T>: Send + Sync + 'static
     fn write(&self) -> Self::WriteGuard<'_>;
 }
 
-// ---------- resync implementation ----------
 impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
 {
     type ReadGuard<'a>
@@ -31,8 +29,6 @@ impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
         T,
         resync::share::DefaultShare,
         resync::spin::DefaultSpin,
-        resync::park::DefaultPark,
-        10,
     >
     where Self: 'a;
     type WriteGuard<'a>
@@ -41,8 +37,6 @@ impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
         T,
         resync::share::DefaultShare,
         resync::spin::DefaultSpin,
-        resync::park::DefaultPark,
-        10,
     >
     where Self: 'a;
 
@@ -62,7 +56,6 @@ impl<T: Send + 'static> RwLock<T> for resync::RwLock<T>
     }
 }
 
-// ---------- std implementation ----------
 impl<T: Send + 'static + std::marker::Sync> RwLock<T> for std::sync::RwLock<T>
 {
     type ReadGuard<'a>
@@ -88,7 +81,6 @@ impl<T: Send + 'static + std::marker::Sync> RwLock<T> for std::sync::RwLock<T>
     }
 }
 
-// ---------- Bench functions ----------
 fn gen_create<R: RwLock<u32>>(b: &mut Bencher)
 {
     b.iter(|| {
@@ -224,7 +216,6 @@ fn gen_mixed_contention<R: RwLock<u32>>(b: &mut Bencher)
     }
 }
 
-// ---------- Criterion group ----------
 fn criterion_benchmark(c: &mut Criterion)
 {
     let mut group = c.benchmark_group("rwlock");
