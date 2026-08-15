@@ -48,7 +48,7 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
-    fn try_lock(&self, _current_iteration: usize) -> LockResult
+    unsafe fn try_lock(&self, _current_iteration: usize) -> LockResult
     {
         let result =
             unsafe { libc::pthread_rwlock_trywrlock(self.rwlock.get()) };
@@ -63,13 +63,13 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    fn fake_lock(&self) -> LockResult
+    fn get_state(&self) -> LockResult
     {
         // pthread_rwlock doesn't provide a non-modifying check
         LockResult::Ok(LockStatus::Done)
     }
 
-    fn free(&self)
+    unsafe fn free(&self)
     {
         unsafe {
             libc::pthread_rwlock_unlock(self.rwlock.get());
@@ -82,7 +82,7 @@ unsafe impl LockPolicy for Os
     }
 }
 
-impl SharingPolicy for Os
+unsafe impl SharingPolicy for Os
 {
     fn try_share(&self, _current_iteration: usize) -> LockResult
     {
