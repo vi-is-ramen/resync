@@ -6,19 +6,17 @@ use crate::RetryResult;
 /// This trait abstracts the waiting or spinning strategy used by a lock when a
 /// [`try_lock`](LockPolicy::try_lock) or
 /// [`try_share`](SharingPolicy::try_share) call returns [`LockStatus::Fail`].
-/// Instead of deciding the waiting strategy inside the lock itself, the lock
+/// Instead of deciding the retrying strategy inside the lock itself, the lock
 /// delegates to a `RetryPolicy`, which can be swapped to implement different
-/// backoff, spin, yield, or parking behaviours.
+/// backoff, spin, or yield behaviours.
 ///
 /// # Purpose
 ///
 /// Lock implementations often need to wait for the lock to become free. The
-/// waiting strategy can significantly affect performance and fairness:
+/// retry strategy can significantly affect performance and fairness:
 /// - Spinning (busy‑waiting) is cheap but wastes CPU cycles if the wait is
 ///   long.
 /// - Yielding gives up the current time‑slice and is more cooperative.
-/// - Parking (blocking) puts the thread to sleep, saving CPU but adding
-///   latency.
 ///
 /// By encapsulating the retry logic in a separate policy, the lock can be
 /// parameterised with different behaviours at compile time or runtime, allowing
@@ -33,7 +31,7 @@ use crate::RetryResult;
 /// # Required Super‑trait
 ///
 /// `Self: Default` – The retry policy must be default‑constructible, typically
-/// representing a sensible default waiting strategy (e.g., a short spin loop).
+/// representing a sensible default retry strategy (e.g., a short spin loop).
 ///
 /// # Adaptive Behaviour
 ///
