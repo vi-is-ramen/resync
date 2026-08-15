@@ -16,8 +16,11 @@ trait Mutex<T>: Send + Sync + 'static
     fn lock(&self) -> Self::Guard<'_>;
 }
 
-impl<T: Send + 'static, L: 'static + resync::ILock, S: 'static + resync::ISpin>
-    Mutex<T> for resync::Mutex<T, L, S>
+impl<
+    T: Send + 'static,
+    L: 'static + resync::traits::LockPolicy,
+    R: 'static + resync::traits::RetryPolicy,
+> Mutex<T> for resync::Mutex<T, L, R>
 {
     type Guard<'a>
         = resync::MutexGuard<'a, T, L>
@@ -117,13 +120,9 @@ fn gen_lock_unlock_write_contention<M: Mutex<u32>>(b: &mut Bencher)
 
 fn create(b: &mut Criterion)
 {
-    b.bench_function("create-resync-mutex", |b| {
+    b.bench_function("create-resync-mutex-atomic-busy", |b| {
         gen_create::<
-            resync::Mutex<
-                u32,
-                resync::lock::Atomic,
-                resync::spin::Busy,
-            >,
+            resync::Mutex<u32, resync::lock::Atomic, resync::retry::Busy>,
         >(b)
     });
     b.bench_function("create-std", gen_create::<std::sync::Mutex<u32>>);
@@ -131,9 +130,9 @@ fn create(b: &mut Criterion)
 
 fn lock_unlock(b: &mut Criterion)
 {
-    b.bench_function("lock_unlock-resync-mutex", |b| {
+    b.bench_function("lock_unlock-resync-mutex-atomic-busy", |b| {
         gen_lock_unlock::<
-            resync::Mutex<u32, resync::lock::Atomic, resync::spin::Busy>,
+            resync::Mutex<u32, resync::lock::Atomic, resync::retry::Busy>,
         >(b)
     });
     b.bench_function("lock_unlock-std", |b| {
@@ -143,11 +142,14 @@ fn lock_unlock(b: &mut Criterion)
 
 fn lock_unlock_read_contention(b: &mut Criterion)
 {
-    b.bench_function("lock_unlock_read_contention-resync-mutex", |b| {
-        gen_lock_unlock_read_contention::<
-            resync::Mutex<u32, resync::lock::Atomic, resync::spin::Busy>,
-        >(b)
-    });
+    b.bench_function(
+        "lock_unlock_read_contention-resync-mutex-atomic-busy",
+        |b| {
+            gen_lock_unlock_read_contention::<
+                resync::Mutex<u32, resync::lock::Atomic, resync::retry::Busy>,
+            >(b)
+        },
+    );
     b.bench_function("lock_unlock_read_contention-std", |b| {
         gen_lock_unlock_read_contention::<std::sync::Mutex<u32>>(b)
     });
@@ -155,11 +157,14 @@ fn lock_unlock_read_contention(b: &mut Criterion)
 
 fn lock_unlock_write_contention(b: &mut Criterion)
 {
-    b.bench_function("lock_unlock_write_contention-resync-mutex", |b| {
-        gen_lock_unlock_write_contention::<
-            resync::Mutex<u32, resync::lock::Atomic, resync::spin::Busy>,
-        >(b)
-    });
+    b.bench_function(
+        "lock_unlock_write_contention-resync-mutex-atomic-busy",
+        |b| {
+            gen_lock_unlock_write_contention::<
+                resync::Mutex<u32, resync::lock::Atomic, resync::retry::Busy>,
+            >(b)
+        },
+    );
     b.bench_function("lock_unlock_write_contention-std", |b| {
         gen_lock_unlock_write_contention::<std::sync::Mutex<u32>>(b)
     });

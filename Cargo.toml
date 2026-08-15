@@ -1,6 +1,6 @@
 [package]
 name = "resync"
-version = "0.5.0"
+version = "0.6.0-dev.0"
 edition = "2024"
 workspace = "testing/util"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
@@ -14,6 +14,10 @@ keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
+# > lock_api's architecture and mental model isn't compatible with resync's one;
+# > We need to wait until const traits become stable (at least) or until lock_api
+# > changes. So far, we are not compatible.
+# lock_api = "0.4"
 windows-sys = { version = "0.61", optional = true, features = [
     "Win32_System_Threading",
     "Win32_Foundation"
@@ -34,10 +38,10 @@ unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)',
 missing_docs = 'deny'
 missing_debug_implementations = 'deny'
 
-[[bench]]
-name = "mutex"
-harness = false
-required-features = []
+# [[bench]]
+# name = "mutex"
+# harness = false
+# required-features = []
 
 # [[bench]]
 # name = "rwlock"

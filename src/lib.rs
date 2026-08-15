@@ -12,17 +12,14 @@
 #![cfg(feature = "std")]
 extern crate libc;
 
-pub mod lock;
-mod prim;
-mod result;
-pub mod share;
-pub mod spin;
+mod batteries;
+pub mod traits;
 
-pub use lock::{DEFAULT_EPSILON, ILock};
-pub use prim::{Barrier, Gate, Mutex, MutexGuard, RwLock, RwMut, RwRef};
+pub use batteries::primitives::*;
+pub use batteries::*;
+
+mod result;
 pub use result::*;
-pub use share::IShare;
-pub use spin::ISpin;
 
 #[doc = include_str!("../markdown/book.md")]
 pub mod guide

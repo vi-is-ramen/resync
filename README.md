@@ -11,6 +11,11 @@
 > by enthusiasm and willpower. I need help developing the ecosystem — specifically the `resync` crate —
 > and would be very grateful for issues, patches, spreading the word, or any other form of contribution.
 
+> **ATTENTION**<br/>
+> Resync's type are not compatible with `lock_api`'s traits. Resync's and `lock_api`'s mental model and
+> architecture are incompatible in foundamental level, so until Rust's `const_traits` and `const_traits_impl`
+> are unstable and `lock_api` has it's model same, we are not compatible.
+
 A LEGO-like synchronization primitives library for Rust.
 
 `resync` provides composable building blocks for implementing locks and spin loops. Instead of a one-size-fits-all mutex, `resync` allows you to mix and match lock acquisition strategies and spin-wait backends at compile time using generic traits.

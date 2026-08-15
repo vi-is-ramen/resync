@@ -1,6 +1,7 @@
 use core::convert::Infallible;
 
-use crate::{ISpin, SpinResult};
+use crate::RetryResult;
+use crate::traits::RetryPolicy;
 
 /// A spin strategy that calls [`std::thread::yield_now`].
 #[derive(Default, Debug)]
@@ -15,21 +16,13 @@ impl Yield
     }
 }
 
-impl ISpin for Yield
+impl RetryPolicy for Yield
 {
     type Error = Infallible;
 
-    #[cfg(feature = "std")]
-    fn spin(&self) -> SpinResult<Self::Error>
+    fn retry(&self, _: usize) -> RetryResult<Self::Error>
     {
         std::thread::yield_now();
-        Ok(())
-    }
-
-    #[cfg(not(feature = "std"))]
-    fn spin(&self) -> SpinResult<Self::Error>
-    {
-        core::hint::spin_loop();
         Ok(())
     }
 }

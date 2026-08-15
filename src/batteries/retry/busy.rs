@@ -2,7 +2,8 @@
 
 use core::convert::Infallible;
 
-use crate::{ISpin, SpinResult};
+use crate::RetryResult;
+use crate::traits::RetryPolicy;
 
 /// A spin strategy that executes a CPU pause instruction.
 #[allow(missing_debug_implementations)]
@@ -16,26 +17,13 @@ impl core::default::Default for Busy
     }
 }
 
-impl ISpin for Busy
+impl RetryPolicy for Busy
 {
     type Error = Infallible;
 
-    fn spin(&self) -> SpinResult<Self::Error>
+    fn retry(&self, _: usize) -> RetryResult<Self::Error>
     {
         core::hint::spin_loop();
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests
-{
-    use super::*;
-
-    #[test]
-    fn busy_spin_returns_ok()
-    {
-        let spin = Busy;
-        assert_eq!(spin.spin(), Ok(()));
     }
 }

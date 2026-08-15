@@ -1,40 +1,73 @@
-//! Result types used by locks and spin loops.
+//! Result types for lock and retry operations.
+//!
+//! This module defines the core result types used by the lock policies in this
+//! crate. They are designed to be flexible, performant, and to clearly
+//! distinguish between **transient contention** (the lock is held by someone
+//! else) and **fatal errors** (the lock is corrupted or the operation must
+//! abort).
 //!
 //! # Design
 //!
-//! This module provides flexible, performance‑oriented result types using
-//! Rust's `Result` type with associated error types:
+//! All lock‑acquisition methods return a [`LockResult<E>`], which is a
+//! `Result<LockStatus, E>`. The [`LockStatus`] enum has two variants:
+//! - [`LockStatus::Done`] – the lock was successfully acquired.
+//! - [`LockStatus::Fail`] – the lock is currently held by another owner.
 //!
-//! - **`LockStatus`**: enum distinguishing successful acquisition from failure
-//! - **`LockResult<E>`**: `Result<LockStatus, E>` for lock operations
-//! - **`SpinResult<E>`**: `Result<(), E>` for spin operations
+//! This separation allows the caller to decide how to handle contention
+//! (e.g., by retrying with a [`RetryPolicy`]) without conflating it with
+//! unrecoverable errors.
+//!
+//! For retry policies, the [`retry`](RetryPolicy::retry) method returns a
+//! [`RetryResult<E>`], which is a `Result<(), E>`. An `Ok(())` means “continue
+//! waiting”, while an `Err(e)` means “abort the retry loop and propagate the
+//! error”.
 //!
 //! # Error Types
 //!
-//! Each trait (`ILock`, `IShare`, `ISpin`) has an associated `Error` type:
-//! - For operations that never fail: use `core::convert::Infallible`
-//! - For operations with specific errors: define custom error types
+//! Each lock policy defines its own associated `Error` type. This can be:
+//! - [`core::convert::Infallible`] for locks that never fail (e.g., spinlocks).
+//! - A custom error type for locks that can fail (e.g., due to poisoning,
+//!   timeouts, or resource unavailability).
 //!
 //! # Performance
 //!
-//! When `E = Infallible`, the compiler optimizes `Result<T, Infallible>` to
-//! just `T`, eliminating any overhead.
+//! When the error type is [`Infallible`], the Rust compiler optimises
+//! `Result<T, Infallible>` to just `T` (via the `Try` trait and niche
+//! optimisation). This means that lock operations that never fail incur
+//! **zero runtime overhead** for error handling – they are as efficient as
+//! returning a plain `LockStatus`.
 //!
 //! # Examples
 //!
-//! ```rust
-//! use resync::lock::Atomic;
-//! use resync::{ILock, LockResult, LockStatus};
+//! A typical lock acquisition loop using these result types:
 //!
-//! let lock = Atomic::new();
-//!
-//! match lock.try_lock(0)
+//! ```no_run
+//! # use lock_policies::{LockResult, LockStatus};
+//! # fn try_lock() -> LockResult { Ok(LockStatus::Done) }
+//! # fn retry() -> Result<(), std::io::Error> { Ok(()) }
+//! # let mut iteration = 0;
+//! loop
 //! {
-//!     Ok(LockStatus::Done) => println!("Acquired!"),
-//!     Ok(LockStatus::Fail) => println!("Lock held"),
-//!     Err(e) => println!("Error: {:?}", e),
+//!     match try_lock()?
+//!     {
+//!         LockStatus::Done => break,
+//!         LockStatus::Fail =>
+//!         {
+//!             // Retry with a policy.
+//!             retry().map_err(|e| e)?;
+//!             iteration += 1;
+//!         },
+//!     }
 //! }
+//! # Ok::<_, std::io::Error>(())
 //! ```
+//!
+//! # See Also
+//!
+//! - [`LockPolicy`] – the trait that uses [`LockResult`] for exclusive locks.
+//! - [`SharingPolicy`] – the trait that uses [`LockResult`] for shared locks.
+//! - [`RetryPolicy`] – the trait that uses [`RetryResult`].
+//! - [`core::convert::Infallible`] – the never‑fails error type.
 
 /// The status of a lock acquisition attempt.
 ///
@@ -60,10 +93,10 @@ pub enum LockStatus
 /// that never fail, use `core::convert::Infallible`.
 pub type LockResult<E = core::convert::Infallible> = Result<LockStatus, E>;
 
-/// Result type for spin operations.
+/// Result type for retry operations.
 ///
-/// - `Ok(())`: spin completed, continue waiting
-/// - `Err(E)`: spin aborted (timeout, error, etc.)
+/// - `Ok(())`: retry completed, continue waiting
+/// - `Err(E)`: retry aborted (timeout, error, etc.)
 ///
-/// The error type `E` is determined by the spin implementation.
-pub type SpinResult<E = core::convert::Infallible> = Result<(), E>;
+/// The error type `E` is determined by the retry implementation.
+pub type RetryResult<E = core::convert::Infallible> = Result<(), E>;

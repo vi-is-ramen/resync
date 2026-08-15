@@ -6,8 +6,8 @@ check:
     @cargo clippy --all-targets --all-features -- -D warnings
 
 test:
-    @cargo test --all-features
-    @cargo test --no-default-features
+    @cargo test --all-features --all-targets
+    @cargo test --no-default-features --all-targets
     @python scripts/test.py
 
 clean:
