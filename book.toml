@@ -1,0 +1,13 @@
+[book]
+authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
+language = "en"
+src = "book"
+title = "Resync Book"
+
+[output.html]
+git-repository-url = "https://github.com/vi-is-ramen/resync"
+edit-url-template = "https://github.com/vi-is-ramen/resync/edit/main/{path}"
+site-url = "/resync/"
+
+[output.html.playground]
+editable = true

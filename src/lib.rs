@@ -30,8 +30,15 @@
 //!
 //! For a comprehensive guide on the library's philosophy, design decisions,
 //! and advanced usage patterns, see the [`guide`] module.
+//!
+//! # Guidebook
+//!
+//! For a comprehensive, interactive guide on the library's philosophy, design
+//! decisions, and advanced usage patterns, please visit the **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]
+
 extern crate libc;
 
 mod batteries;
@@ -43,12 +50,3 @@ pub use batteries::*;
 
 mod result;
 pub use result::*;
-
-/// The comprehensive guidebook for the `resync` crate.
-///
-/// This module contains the full text of the Resync Guidebook, covering
-/// the library's philosophy, core concepts, advanced usage patterns, design
-/// decisions, and inherent limitations.
-#[doc = include_str!("../markdown/book.md")]
-pub mod guide
-{}
