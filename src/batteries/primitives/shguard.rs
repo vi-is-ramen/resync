@@ -21,6 +21,14 @@ where L: SharingPolicy<Meta = M>
     meta: M,
 }
 
+unsafe impl<'a, T, L, M> core::marker::Send for ShGuard<'a, T, L, M>
+where
+    T: Send,
+    L: SharingPolicy<Meta = M> + Send,
+    M: Send,
+{
+}
+
 impl<'a, T, L, M> ShGuard<'a, T, L, M>
 where L: SharingPolicy<Meta = M>
 {

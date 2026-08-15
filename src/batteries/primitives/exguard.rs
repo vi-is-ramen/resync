@@ -13,6 +13,14 @@ where L: LockPolicy<Meta = M>
     meta: M,
 }
 
+unsafe impl<'a, T, L, M> core::marker::Send for ExGuard<'a, T, L, M>
+where
+    T: Send,
+    L: LockPolicy<Meta = M> + Send,
+    M: Send,
+{
+}
+
 impl<'a, T, L, M> ExGuard<'a, T, L, M>
 where L: LockPolicy<Meta = M>
 {
