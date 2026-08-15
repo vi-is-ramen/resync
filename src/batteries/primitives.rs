@@ -6,16 +6,21 @@
 //! [`LockPolicy`](crate::traits::LockPolicy) or
 //! [`SharingPolicy`](crate::traits::SharingPolicy) and a
 //! [`RetryPolicy`](crate::traits::RetryPolicy) into a safe, RAII-based API.
+
+#[cfg(dev)]
 mod barrier;
 mod exguard;
 mod mutex;
+#[cfg(dev)]
 mod newsitem;
 mod sharex;
 mod shguard;
 
+#[cfg(dev)]
 pub use barrier::*;
 pub use exguard::*;
 pub use mutex::*;
+#[cfg(dev)]
 pub use newsitem::*;
 pub use sharex::*;
 pub use shguard::*;

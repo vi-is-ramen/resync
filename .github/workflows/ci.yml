@@ -54,6 +54,8 @@ jobs:
                 features:
                     - ""
                     - "std"
+                    - "dev"
+                    - ["std", "dev"]
         runs-on: ${{ matrix.os }}
         steps:
             -   uses: actions/checkout@v7

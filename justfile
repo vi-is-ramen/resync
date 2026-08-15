@@ -6,9 +6,11 @@ check:
     @cargo clippy --all-targets --all-features -- -D warnings
 
 test:
-    @cargo test --all-features --all-targets
     @cargo test --no-default-features --all-targets
-    @cargo test --doc
+    @cargo test --no-default-features dev --all-targets
+    @cargo test --no-default-features std --all-targets
+    @cargo test --no-default-features std,dev --all-targets
+    @cargo test --doc --all-features
     @python scripts/test.py
 
 chlog *a:

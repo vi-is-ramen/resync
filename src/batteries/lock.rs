@@ -43,8 +43,8 @@ pub use macos::*;
 ))]
 pub type Os = Atomic;
 
-#[cfg(all(feature = "std", unix))]
+#[cfg(all(feature = "std", unix, dev))]
 mod fs;
 
-#[cfg(all(feature = "std", unix))]
+#[cfg(all(feature = "std", unix, dev))]
 pub use fs::*;

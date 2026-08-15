@@ -36,4 +36,7 @@ fn main()
     a();
     b();
     c();
+
+    #[cfg(feature = "dev")]
+    println!("cargo:rustc-cfg=dev");
 }
