@@ -15,9 +15,6 @@ keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
-# > lock_api's architecture and mental model isn't compatible with resync's one;
-# > We need to wait until const traits become stable (at least) or until lock_api
-# > changes. So far, we are not compatible.
 # lock_api = "0.4"
 windows-sys = { version = "0.61", optional = true, features = [
     "Win32_System_Threading",
