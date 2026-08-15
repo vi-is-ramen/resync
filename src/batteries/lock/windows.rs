@@ -1,5 +1,5 @@
 use crate::traits::{LockPolicy, SharingPolicy};
-use crate::{ILock, IShare, LockResult, LockStatus};
+use crate::{LockResult, LockStatus};
 
 #[allow(missing_debug_implementations)]
 #[repr(transparent)]
@@ -35,7 +35,7 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
-    fn try_lock(&self, _current_iteration: usize) -> LockResult
+    unsafe fn try_lock(&self, _current_iteration: usize) -> LockResult
     {
         let result = unsafe {
             windows_sys::Win32::System::Threading::TryAcquireSRWLockExclusive(
@@ -53,7 +53,7 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    fn fake_lock(&self) -> LockResult
+    fn get_state(&self) -> LockResult
     {
         // SRWLOCK doesn't provide a non-modifying check, so we assume it always
         // unlocked. It's much better and doesn't violate invariant "no
@@ -61,7 +61,7 @@ unsafe impl LockPolicy for Os
         LockResult::Ok(LockStatus::Done)
     }
 
-    fn free(&self)
+    unsafe fn free(&self)
     {
         unsafe {
             windows_sys::Win32::System::Threading::ReleaseSRWLockExclusive(
@@ -76,7 +76,7 @@ unsafe impl LockPolicy for Os
     }
 }
 
-impl SharingPolicy for Os
+unsafe impl SharingPolicy for Os
 {
     fn try_share(&self, _current_iteration: usize) -> LockResult
     {
