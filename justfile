@@ -11,6 +11,9 @@ test:
     @cargo test --doc
     @python scripts/test.py
 
+chlog *a:
+    @python scripts/chlog.py {{a}}
+
 clean:
     @cargo clean
 
