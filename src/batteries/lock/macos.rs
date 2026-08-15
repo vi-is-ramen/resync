@@ -111,6 +111,18 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Releases the exclusive (writer) lock.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that they currently hold the exclusive lock.
+    unsafe fn free(&self)
+    {
+        unsafe {
+            libc::pthread_rwlock_unlock(self.rwlock.get());
+        }
+    }
+
     /// Wakes all threads waiting for an exclusive lock.
     ///
     /// This is a no-op because `pthread_rwlock_t` handles thread waking
