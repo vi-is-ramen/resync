@@ -151,7 +151,7 @@ where R: RetryPolicy
     ///   `is_leader` field indicates if this thread was the last to arrive.
     /// - `Err(R::Error)`: The retry policy aborted the wait loop (e.g., due to
     ///   a timeout).
-    pub fn wait(&self) -> Result<BarrierWaitResult, R::Error>
+    pub fn wait(&self) -> Result<BarrierWaitResult, <R as RetryPolicy>::Error>
     {
         let gen_ = self.generation.load(Ordering::Acquire);
         let prev = self.count.fetch_add(1, Ordering::AcqRel);

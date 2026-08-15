@@ -19,10 +19,13 @@
 //! let lock = SafeNestedLock::default();
 //!
 //! // Acquires L1, then L2
-//! assert_eq!(unsafe { lock.try_lock(0) }.unwrap(), LockStatus::Done);
+//! assert_eq!(
+//!     unsafe { lock.try_lock(0) }.unwrap(),
+//!     LockStatus::Done(((), ()))
+//! );
 //!
 //! // Releases L2, then L1
-//! unsafe { lock.free() };
+//! unsafe { lock.free(&((), ())) };
 //! ```
 
 use crate::traits::LockPolicy;
@@ -55,7 +58,6 @@ where
 {
     /// An error occurred in the first inner lock (`L1`).
     E1(E1),
-
     /// An error occurred in the second inner lock (`L2`).
     E2(E2),
 }
@@ -123,6 +125,7 @@ where
 {
     type Error =
         NestedError<<L1 as LockPolicy>::Error, <L2 as LockPolicy>::Error>;
+    type Meta = (<L1 as LockPolicy>::Meta, <L2 as LockPolicy>::Meta);
 
     /// Attempts to acquire both inner locks in order (`L1` then `L2`).
     ///
@@ -137,34 +140,33 @@ where
     unsafe fn try_lock(
         &self,
         current_iteration: usize,
-    ) -> LockResult<Self::Error>
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         let l1 = unsafe { self.l1.try_lock(current_iteration) };
-
-        if let Ok(LockStatus::Fail) = l1
+        let first_meta = match l1
         {
-            return l1.map_err(NestedError::E1);
-        }
-
-        if l1.is_err()
-        {
-            return l1.map_err(NestedError::E1);
-        }
+            Ok(LockStatus::Done(meta)) => meta,
+            Ok(LockStatus::Fail) => return Ok(LockStatus::Fail),
+            Err(error) => return Err(NestedError::E1(error)),
+        };
 
         let l2 = unsafe { self.l2.try_lock(current_iteration) };
 
         match l2
         {
-            Ok(LockStatus::Done) => Ok(LockStatus::Done),
+            Ok(LockStatus::Done(meta)) =>
+            {
+                Ok(LockStatus::Done((first_meta, meta)))
+            },
             Ok(LockStatus::Fail) =>
             {
-                unsafe { self.l1.free() };
+                unsafe { self.l1.free(&first_meta) };
                 Ok(LockStatus::Fail)
             },
-            Err(_) =>
+            Err(error) =>
             {
-                unsafe { self.l1.free() };
-                l2.map_err(NestedError::E2)
+                unsafe { self.l1.free(&first_meta) };
+                Err(NestedError::E2(error))
             },
         }
     }
@@ -174,11 +176,11 @@ where
     /// # Safety
     ///
     /// The caller must ensure that they currently hold both locks.
-    unsafe fn free(&self)
+    unsafe fn free(&self, meta: &Self::Meta)
     {
         unsafe {
-            self.l2.free();
-            self.l1.free();
+            self.l2.free(&meta.1);
+            self.l1.free(&meta.0);
         }
     }
 

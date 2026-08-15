@@ -152,7 +152,7 @@ where R: RetryPolicy
     /// - `Ok(())`: The event was signaled.
     /// - `Err(R::Error)`: The retry policy aborted the wait loop (e.g., due to
     ///   a timeout).
-    pub fn wait(&self) -> Result<(), R::Error>
+    pub fn wait(&self) -> Result<(), <R as RetryPolicy>::Error>
     {
         let mut iterations = 0;
         loop

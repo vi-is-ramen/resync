@@ -29,26 +29,35 @@ moment the atomic instruction executed, eliminating TOCTOU bugs by design.
 # Why LockResult and RetryResult instead of bool?
 
 Standard library locks often return bool or Result<T, PoisonError>.
-Resync uses explicit enums (LockStatus inside LockResult and
-RetryResult) to handle distinct states without relying on
+Resync uses explicit enums (`LockStatus<M>` inside `LockResult<M, E>` and
+`RetryResult<E>`) to handle distinct states without relying on
 panics:
 
-- Done / Ok: Success.
-- Fail: Contention. The lock is held, but the system is healthy. The
+- `Done(M)` / `Ok(())`: Success. The lock is acquired, and any necessary
+metadata is returned to be passed back during release.
+- `Fail`: Contention. The lock is held, but the system is healthy. The
 caller should spin or yield.
-- Err: Unrecoverable error. The lock is "poisoned", the underlying
+- `Err(E)`: Unrecoverable error. The lock is "poisoned", the underlying
 hardware failed, or the retry strategy detected a timeout. This allows
 `no_std` environments to handle catastrophic failures gracefully without
 unwinding panics.
 
-# Why is `LockPolicy::free` idempotent?
+# Why is `LockPolicy::free` taking metadata?
 
-Calling free() on an already free lock is a guaranteed no-op. This
-dramatically simplifies the implementation of composite locks (like
-lock::Nested) and error-handling paths. If an abort occurs
-halfway through acquiring a nested lock, the cleanup code can safely call
-free() on all inner locks without needing to track which specific ones
-were successfully acquired.
+The `free` method requires the `Meta` object returned by `try_lock`. For
+simple locks (like `Atomic`), `Meta` is just `()`, making the release
+trivial. However, for more complex locks (like ticket locks or OS futexes
+that need to track waiter queues), this metadata is essential to correctly
+release the exact lock instance or wake the correct threads.
+
+Because the `Meta` is tied to the specific acquisition, it also prevents
+accidentally releasing a lock you don't own or releasing it multiple times
+with stale state. For simple locks where `Meta = ()`, calling `free(&())`
+on an already free lock remains a guaranteed no-op, which dramatically
+simplifies the implementation of composite locks (like `lock::Nested`)
+and error-handling paths. If an abort occurs halfway through acquiring a
+nested lock, the cleanup code can safely call `free` on all inner locks
+that successfully returned their metadata.
 
 # Why `lock::Nested`?
 

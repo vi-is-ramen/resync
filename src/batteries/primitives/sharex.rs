@@ -125,9 +125,9 @@ where
     {
         match self.lock.try_share(0)
         {
-            Ok(LockStatus::Done) =>
+            Ok(LockStatus::Done(meta)) =>
             {
-                Ok(ShGuard::new(self.inner.get(), &self.lock))
+                Ok(ShGuard::new(self.inner.get(), &self.lock, meta))
             },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
@@ -150,9 +150,9 @@ where
     {
         match unsafe { self.lock.try_lock(0) }
         {
-            Ok(LockStatus::Done) =>
+            Ok(LockStatus::Done(meta)) =>
             {
-                Ok(ExGuard::new(self.inner.get(), &self.lock))
+                Ok(ExGuard::new(self.inner.get(), &self.lock, meta))
             },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
@@ -175,18 +175,19 @@ where
     ///   loop.
     pub fn read(
         &self,
-    ) -> Result<ShGuard<'_, T, L>, LockError<L::Error, R::Error>>
+    ) -> Result<ShGuard<'_, T, L>, LockError<L::Error, <R as RetryPolicy>::Error>>
     {
         let mut iterations = 0usize;
+
         loop
         {
             iterations += 1;
 
             match self.lock.try_share(iterations)
             {
-                Ok(LockStatus::Done) =>
+                Ok(LockStatus::Done(meta)) =>
                 {
-                    return Ok(ShGuard::new(self.inner.get(), &self.lock));
+                    return Ok(ShGuard::new(self.inner.get(), &self.lock, meta));
                 },
                 Ok(LockStatus::Fail) =>
                 {
@@ -217,18 +218,19 @@ where
     ///   loop.
     pub fn write(
         &self,
-    ) -> Result<ExGuard<'_, T, L>, LockError<L::Error, R::Error>>
+    ) -> Result<ExGuard<'_, T, L>, LockError<L::Error, <R as RetryPolicy>::Error>>
     {
         let mut iterations = 0usize;
+
         loop
         {
             iterations += 1;
 
             match unsafe { self.lock.try_lock(iterations) }
             {
-                Ok(LockStatus::Done) =>
+                Ok(LockStatus::Done(meta)) =>
                 {
-                    return Ok(ExGuard::new(self.inner.get(), &self.lock));
+                    return Ok(ExGuard::new(self.inner.get(), &self.lock, meta));
                 },
                 Ok(LockStatus::Fail) =>
                 {
@@ -254,7 +256,7 @@ where
     pub fn exchange(
         &self,
         new_value: T,
-    ) -> Result<T, LockError<L::Error, R::Error>>
+    ) -> Result<T, LockError<L::Error, <R as RetryPolicy>::Error>>
     {
         let guard = self.write()?;
         Ok(guard.exchange(new_value))
@@ -303,7 +305,9 @@ where
     ///   policy.
     /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
     ///   loop.
-    pub fn take(&self) -> Result<T, LockError<L::Error, R::Error>>
+    pub fn take(
+        &self,
+    ) -> Result<T, LockError<L::Error, <R as RetryPolicy>::Error>>
     {
         Ok(self.write()?.take())
     }

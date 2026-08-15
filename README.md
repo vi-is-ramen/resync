@@ -5,13 +5,15 @@
 [![License](https://img.shields.io/crates/l/resync.svg)](#license)
 [![Rust](https://img.shields.io/badge/rust-stable%20|%20beta%20|%20nightly-orange.svg)](https://www.rust-lang.org)
 
-> **HELP WANTED**  
+> **HELP WANTED**
+>
 > Every day, I conduct research and develop prototypes for libraries, utilities, and other developer
 > tools — investing a great deal of time without any financial return. All my projects are driven purely
 > by enthusiasm and willpower. I need help developing the ecosystem — specifically the Resync crate —
 > and would be very grateful for issues, patches, spreading the word, or any other form of contribution.
 
-> **ATTENTION**  
+> **ATTENTION**
+>
 > Resync's types are not compatible with `lock_api`'s traits. The mental models and architectures of
 > Resync and `lock_api` are fundamentally incompatible. Until Rust's `const_traits` and
 > `const_trait_impl` are stabilized and `lock_api` adopts a compatible model, we are not compatible.
@@ -63,7 +65,6 @@ use resync::Mutex;
 
 fn main() {
     let mutex = Mutex::<u32>::new(42);
-
     {
         // Acquire the lock.
         // Returns an error if the underlying lock or retry policy reports an unrecoverable issue.
@@ -101,13 +102,14 @@ use resync::LockStatus;
 let lock = Atomic::new();
 
 match unsafe { lock.try_lock(0) } {
-    Ok(LockStatus::Done)  => println!("Successfully acquired!"),
+    Ok(LockStatus::Done(meta))  => {
+        println!("Successfully acquired!");
+        // Release the lock (idempotent)
+        unsafe { lock.free(&meta) };
+    },
     Ok(LockStatus::Fail)  => println!("Lock is currently held by someone else."),
     Err(e) => println!("Unrecoverable system error: {:?}", e),
 }
-
-// Release the lock (idempotent)
-unsafe { lock.free() };
 ```
 
 ### Composite Locks (Deadlock Prevention)
@@ -124,9 +126,10 @@ use resync::LockStatus;
 type SafeNestedLock = Nested<Atomic, Atomic>;
 
 let lock = SafeNestedLock::default();
-if unsafe { lock.try_lock(0) } == Ok(LockStatus::Done) {
+
+if let Ok(LockStatus::Done(meta)) = unsafe { lock.try_lock(0) } {
     println!("Acquired both inner locks safely!");
-    unsafe { lock.free() }; // Releases L2, then L1
+    unsafe { lock.free(&meta) }; // Releases L2, then L1
 }
 ```
 
@@ -165,10 +168,10 @@ Resync is continuously tested against the latest **stable**, **beta**, and **nig
 
 Licensed under either of
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
- * MIT license
-   ([LICENSE-MIT](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+* Apache License, Version 2.0
+  ([LICENSE-APACHE](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+* MIT license
+  ([LICENSE-MIT](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 

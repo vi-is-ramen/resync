@@ -1,32 +1,32 @@
-use core::ops::{Deref, DerefMut};
-
 use crate::traits::LockPolicy;
+use core::ops::{Deref, DerefMut};
 
 /// An exclusive RAII guard that provides mutable access to the protected data.
 ///
 /// When this guard is dropped, the underlying lock is automatically released
 /// via the [`LockPolicy::free`] method.
-pub struct ExGuard<'a, T, L>
-where L: LockPolicy
+pub struct ExGuard<'a, T, L, M = <L as LockPolicy>::Meta>
+where L: LockPolicy<Meta = M>
 {
     data: *mut T,
     lock: &'a L,
+    meta: M,
 }
 
-impl<'a, T, L> ExGuard<'a, T, L>
-where L: LockPolicy
+impl<'a, T, L, M> ExGuard<'a, T, L, M>
+where L: LockPolicy<Meta = M>
 {
     /// Creates a new guard.
-    pub fn new(data: *mut T, lock: &'a L) -> Self
+    pub fn new(data: *mut T, lock: &'a L, meta: M) -> Self
     {
-        Self { data, lock }
+        Self { data, lock, meta }
     }
 }
 
-impl<'a, T, L> ExGuard<'a, T, L>
+impl<'a, T, L, M> ExGuard<'a, T, L, M>
 where
     T: Default,
-    L: LockPolicy,
+    L: LockPolicy<Meta = M>,
 {
     /// Takes the value out of the guarded data, leaving `Default::default()`
     /// in its place, and releases the lock.
@@ -37,8 +37,8 @@ where
     }
 }
 
-impl<'a, T, L> ExGuard<'a, T, L>
-where L: LockPolicy
+impl<'a, T, L, M> ExGuard<'a, T, L, M>
+where L: LockPolicy<Meta = M>
 {
     /// Exchanges the protected value with a new value, returning the old value.
     ///
@@ -61,10 +61,10 @@ where L: LockPolicy
     }
 }
 
-impl<'a, T, L> core::fmt::Debug for ExGuard<'a, T, L>
+impl<'a, T, L, M> core::fmt::Debug for ExGuard<'a, T, L, M>
 where
     T: core::fmt::Debug,
-    L: LockPolicy,
+    L: LockPolicy<Meta = M>,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
@@ -73,17 +73,17 @@ where
     }
 }
 
-impl<'a, T, L> core::ops::Drop for ExGuard<'a, T, L>
-where L: LockPolicy
+impl<'a, T, L, M> core::ops::Drop for ExGuard<'a, T, L, M>
+where L: LockPolicy<Meta = M>
 {
     fn drop(&mut self)
     {
-        unsafe { self.lock.free() };
+        unsafe { self.lock.free(&self.meta) };
     }
 }
 
-impl<'a, T, L> Deref for ExGuard<'a, T, L>
-where L: LockPolicy
+impl<'a, T, L, M> Deref for ExGuard<'a, T, L, M>
+where L: LockPolicy<Meta = M>
 {
     type Target = T;
 
@@ -93,8 +93,8 @@ where L: LockPolicy
     }
 }
 
-impl<'a, T, L> DerefMut for ExGuard<'a, T, L>
-where L: LockPolicy
+impl<'a, T, L, M> DerefMut for ExGuard<'a, T, L, M>
+where L: LockPolicy<Meta = M>
 {
     fn deref_mut(&mut self) -> &mut Self::Target
     {

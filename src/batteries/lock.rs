@@ -5,11 +5,14 @@
 //! into higher-level primitives like [`Mutex`](crate::Mutex). The available
 //! implementations depend on the target operating system and enabled features.
 
-mod atomic;
+pub(crate) mod atomic;
 #[cfg(feature = "fake")]
-mod fake;
-mod nested;
-mod shield;
+pub(crate) mod fake;
+pub(crate) mod nested;
+pub(crate) mod shield;
+
+#[cfg(all(feature = "std", unix, dev))]
+mod fs;
 
 pub use atomic::*;
 #[cfg(feature = "fake")]
@@ -17,34 +20,51 @@ pub use fake::*;
 pub use nested::*;
 pub use shield::*;
 
-#[cfg(all(feature = "std", target_os = "linux"))]
-mod linux;
+#[cfg(all(feature = "std", unix, dev))]
+pub use fs::*;
+
+#[cfg(any(feature = "__lint", all(feature = "std", target_os = "linux")))]
+#[cfg_attr(feature = "__lint", doc(hidden))]
+pub mod linux;
 
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub use linux::*;
 
-#[cfg(all(feature = "std", target_os = "windows"))]
-mod windows;
+#[cfg(any(feature = "__lint", all(feature = "std", target_os = "windows")))]
+#[cfg_attr(feature = "__lint", doc(hidden))]
+pub mod windows;
 
 #[cfg(all(feature = "std", target_os = "windows"))]
 pub use windows::*;
 
-#[cfg(all(feature = "std", target_os = "macos"))]
-mod macos;
+#[cfg(any(feature = "__lint", all(feature = "std", target_os = "macos")))]
+#[cfg_attr(feature = "__lint", doc(hidden))]
+pub mod macos;
 
 #[cfg(all(feature = "std", target_os = "macos"))]
 pub use macos::*;
 
 /// Fallback to the atomic lock strategy when the current OS is not natively
 /// supported by Resync's `std` feature.
+#[cfg(any(
+    feature = "__lint",
+    all(
+        feature = "std",
+        not(any(
+            target_os = "linux",
+            target_os = "windows",
+            target_os = "macos",
+        ))
+    )
+))]
+#[cfg_attr(feature = "__lint", doc(hidden))]
+pub mod fallback
+{
+    pub type Os = super::Atomic;
+}
+
 #[cfg(all(
     feature = "std",
     not(any(target_os = "linux", target_os = "windows", target_os = "macos",))
 ))]
-pub type Os = Atomic;
-
-#[cfg(all(feature = "std", unix, dev))]
-mod fs;
-
-#[cfg(all(feature = "std", unix, dev))]
-pub use fs::*;
+pub use fallback::*;

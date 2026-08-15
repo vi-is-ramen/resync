@@ -1,5 +1,4 @@
 #![allow(unused_imports)]
-
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 
@@ -77,8 +76,12 @@ use core::convert::Infallible;
 /// unsafe impl LockPolicy for SpinPolicy
 /// {
 ///     type Error = Infallible;
+///     type Meta = ();
 ///
-///     unsafe fn try_lock(&self, _: usize) -> LockResult<Self::Error>
+///     unsafe fn try_lock(
+///         &self,
+///         _: usize,
+///     ) -> LockResult<Self::Meta, Self::Error>
 ///     {
 ///         // Note: A production policy might spin for the first 100 iterations
 ///         // and then call `std::thread::yield_now()` or park.
@@ -90,12 +93,11 @@ use core::convert::Infallible;
 ///         }
 ///         else
 ///         {
-///             Ok(LockStatus::Done)
+///             Ok(LockStatus::Done(()))
 ///         }
-///         .into()
 ///     }
 ///
-///     unsafe fn free(&self)
+///     unsafe fn free(&self, _: &())
 ///     {
 ///         self.0.store(false, Ordering::Release);
 ///     }
@@ -113,6 +115,9 @@ where Self: Sync
     ///
     /// Use [`Infallible`] for locks that never fail.
     type Error: core::error::Error;
+
+    /// TODO: documentation
+    type Meta;
 
     /// Attempt to acquire the lock.
     ///
@@ -146,7 +151,7 @@ where Self: Sync
     unsafe fn try_lock(
         &self,
         current_iteration: usize,
-    ) -> LockResult<Self::Error>;
+    ) -> LockResult<Self::Meta, Self::Error>;
 
     /// Release the lock.
     ///
@@ -160,29 +165,7 @@ where Self: Sync
     /// barriers) or fail to handle compiler reordering correctly, leading to
     /// data races on the protected data. The implementor must guarantee
     /// atomicity.
-    unsafe fn free(&self);
-
-    // /// Check the lock state without modifying it.
-    // ///
-    // /// This method must never park the current thread or modify lock's
-    // state. ///
-    // /// > **[!NOTE]**: The result reflects a momentary snapshot and should
-    // not /// > be used for critical decision-making without re-acquiring
-    // the lock. ///
-    // /// # Returns
-    // ///
-    // /// - [`LockStatus::Done`]: Lock is free;
-    // /// - [`LockStatus::Fail`]: Lock is acquired.
-    // ///
-    // /// # Errors
-    // ///
-    // /// This method will return [`Self::Error`] error if the lock is
-    // corrupted. /// Examples:
-    // /// - thread holding the lock had panicked (poisonous lock);
-    // /// - the resource is no longer available (if the lock relies on a
-    // network ///   or filesystem);
-    // /// - and so on.
-    // fn get_state(&self) -> LockResult<Self::Error>;
+    unsafe fn free(&self, meta: &Self::Meta);
 
     /// Wake all threads waiting on this lock.
     ///

@@ -1,5 +1,4 @@
 #![allow(unused_imports)]
-
 use crate::traits::LockPolicy;
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
@@ -112,8 +111,12 @@ use core::convert::Infallible;
 /// unsafe impl LockPolicy for RwSpinPolicy
 /// {
 ///     type Error = Infallible;
+///     type Meta = ();
 ///
-///     unsafe fn try_lock(&self, _: usize) -> LockResult<Self::Error>
+///     unsafe fn try_lock(
+///         &self,
+///         _: usize,
+///     ) -> LockResult<Self::Meta, Self::Error>
 ///     {
 ///         // Try to acquire writer lock: swap to usize::MAX if unlocked.
 ///         // Note: In production, you'd spin for a while before parking.
@@ -125,13 +128,12 @@ use core::convert::Infallible;
 ///         );
 ///         match state
 ///         {
-///             Ok(_) => Ok(LockStatus::Done),
+///             Ok(_) => Ok(LockStatus::Done(())),
 ///             Err(_) => Ok(LockStatus::Fail),
 ///         }
-///         .into()
 ///     }
 ///
-///     unsafe fn free(&self)
+///     unsafe fn free(&self, _: &())
 ///     {
 ///         // Release writer lock: store 0.
 ///         self.0.store(0, Ordering::Release);
@@ -140,7 +142,7 @@ use core::convert::Infallible;
 ///
 /// unsafe impl SharingPolicy for RwSpinPolicy
 /// {
-///     fn try_share(&self, _: usize) -> LockResult<Self::Error>
+///     fn try_share(&self, _: usize) -> LockResult<Self::Meta, Self::Error>
 ///     {
 ///         // Attempt to increment reader count if not held by a writer.
 ///         // This is a simplified loop; a production implementation would
@@ -151,7 +153,7 @@ use core::convert::Infallible;
 ///             if current == usize::MAX
 ///             {
 ///                 // Writer holds the lock, cannot acquire reader lock.
-///                 return Ok(LockStatus::Fail).into();
+///                 return Ok(LockStatus::Fail);
 ///             }
 ///             match self.0.compare_exchange(
 ///                 current,
@@ -160,13 +162,13 @@ use core::convert::Infallible;
 ///                 Ordering::Relaxed,
 ///             )
 ///             {
-///                 Ok(_) => return Ok(LockStatus::Done).into(),
+///                 Ok(_) => return Ok(LockStatus::Done(())),
 ///                 Err(updated) => current = updated,
 ///             }
 ///         }
 ///     }
 ///
-///     fn free_share(&self)
+///     fn free_share(&self, _: &())
 ///     {
 ///         // Decrement reader count.
 ///         self.0.fetch_sub(1, Ordering::Release);
@@ -218,7 +220,10 @@ pub unsafe trait SharingPolicy: LockPolicy
     /// (e.g., Acquire/Release semantics) may lead to data races on the
     /// protected data. Implementors must ensure that the reader‑count update
     /// is atomic and that the lock state is inspected without TOCTOU races.
-    fn try_share(&self, current_iteration: usize) -> LockResult<Self::Error>;
+    fn try_share(
+        &self,
+        current_iteration: usize,
+    ) -> LockResult<Self::Meta, Self::Error>;
 
     /// Release a previously acquired shared (reader) lock.
     ///
@@ -239,7 +244,7 @@ pub unsafe trait SharingPolicy: LockPolicy
     /// and uses appropriate memory barriers (e.g., Release ordering) to
     /// guarantee that all reads performed under the lock are visible to
     /// subsequent writers.
-    fn free_share(&self);
+    fn free_share(&self, meta: &Self::Meta);
 
     /// Wake all threads waiting for a shared (reader) lock.
     ///

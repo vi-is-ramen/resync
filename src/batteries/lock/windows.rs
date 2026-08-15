@@ -58,6 +58,8 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
+    type Meta = ();
+
     /// Attempts to acquire the lock for exclusive (writer) access.
     ///
     /// This method calls `TryAcquireSRWLockExclusive`. If the lock is already
@@ -67,7 +69,10 @@ unsafe impl LockPolicy for Os
     ///
     /// The caller must ensure proper synchronization when accessing protected
     /// data.
-    unsafe fn try_lock(&self, _current_iteration: usize) -> LockResult
+    unsafe fn try_lock(
+        &self,
+        _current_iteration: usize,
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         let result = unsafe {
             windows_sys::Win32::System::Threading::TryAcquireSRWLockExclusive(
@@ -77,7 +82,7 @@ unsafe impl LockPolicy for Os
 
         if result
         {
-            LockResult::Ok(LockStatus::Done)
+            LockResult::Ok(LockStatus::Done(()))
         }
         else
         {
@@ -90,7 +95,7 @@ unsafe impl LockPolicy for Os
     /// # Safety
     ///
     /// The caller must ensure that they currently hold the exclusive lock.
-    unsafe fn free(&self)
+    unsafe fn free(&self, _: &Self::Meta)
     {
         unsafe {
             windows_sys::Win32::System::Threading::ReleaseSRWLockExclusive(
@@ -111,7 +116,10 @@ unsafe impl SharingPolicy for Os
     ///
     /// This method calls `TryAcquireSRWLockShared`. If the lock is held
     /// exclusively by a writer, it returns [`LockStatus::Fail`] immediately.
-    fn try_share(&self, _current_iteration: usize) -> LockResult
+    fn try_share(
+        &self,
+        _current_iteration: usize,
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         let result = unsafe {
             windows_sys::Win32::System::Threading::TryAcquireSRWLockShared(
@@ -121,7 +129,7 @@ unsafe impl SharingPolicy for Os
 
         if result
         {
-            LockResult::Ok(LockStatus::Done)
+            LockResult::Ok(LockStatus::Done(()))
         }
         else
         {
@@ -130,7 +138,7 @@ unsafe impl SharingPolicy for Os
     }
 
     /// Releases a shared (reader) lock.
-    fn free_share(&self)
+    fn free_share(&self, _: &Self::Meta)
     {
         unsafe {
             windows_sys::Win32::System::Threading::ReleaseSRWLockShared(

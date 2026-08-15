@@ -1,5 +1,4 @@
 #![allow(type_alias_bounds)]
-
 //! Result types for lock and retry operations.
 //!
 //! This module defines the core result types used by the lock policies in this
@@ -45,14 +44,14 @@
 //!
 //! ```no_run
 //! # use resync::{LockResult, LockStatus};
-//! # fn try_lock() -> LockResult<std::io::Error> { Ok(LockStatus::Done) }
+//! # fn try_lock() -> LockResult<(), std::io::Error> { Ok(LockStatus::Done(())) }
 //! # fn retry() -> Result<(), std::io::Error> { Ok(()) }
 //! # let mut iteration = 0;
 //! loop
 //! {
 //!     match try_lock()?
 //!     {
-//!         LockStatus::Done => break,
+//!         LockStatus::Done(_) => break,
 //!         LockStatus::Fail =>
 //!         {
 //!             // Retry with a policy.
@@ -76,13 +75,12 @@
 /// This enum distinguishes between successful acquisition and contention,
 /// allowing callers to make informed decisions about retry strategies.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[repr(u8)]
-pub enum LockStatus
+pub enum LockStatus<M>
 {
     /// The lock was already held by another owner.
-    Fail = 0,
+    Fail,
     /// The lock was successfully acquired.
-    Done = 1,
+    Done(M),
 }
 
 /// Result type for lock acquisition operations.
@@ -93,9 +91,9 @@ pub enum LockStatus
 ///
 /// The error type `E` is determined by the lock implementation. For locks
 /// that never fail, use `core::convert::Infallible`.
-pub type LockResult<E = core::convert::Infallible>
+pub type LockResult<M, E>
 where E: core::error::Error
-= Result<LockStatus, E>;
+= Result<LockStatus<M>, E>;
 
 /// Result type for retry operations.
 ///
@@ -103,7 +101,7 @@ where E: core::error::Error
 /// - `Err(E)`: retry aborted (timeout, error, etc.)
 ///
 /// The error type `E` is determined by the retry implementation.
-pub type RetryResult<E = core::convert::Infallible>
+pub type RetryResult<E>
 where E: core::error::Error
 = Result<(), E>;
 

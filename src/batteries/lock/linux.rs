@@ -18,20 +18,17 @@
 //! the kernel via `futex_wait` when they fail to acquire the lock after a
 //! certain number of spin iterations (`DEFAULT_EPSILON`).
 
-use core::sync::atomic::{AtomicU32, Ordering};
-
 use crate::traits::{LockPolicy, SharingPolicy};
 use crate::{LockResult, LockStatus};
+use core::convert::Infallible;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 /// The number of fast-path iterations before falling back to the kernel futex.
 const DEFAULT_EPSILON: usize = 10000;
-
 /// Bitmask indicating that the lock is held exclusively by a writer.
 const WRITER: u32 = 1 << 31;
-
 /// Bitmask indicating that there are threads waiting (parked) on the lock.
 const WAITERS: u32 = 1 << 30;
-
 /// Bitmask for extracting the reader count from the lock state.
 const READERS_MASK: u32 = !(WRITER | WAITERS);
 
@@ -64,7 +61,7 @@ impl Os
     /// repeatedly. It sets the `WAITERS` flag to indicate that threads are
     /// parking, and then invokes `futex_wait` to put the current thread to
     /// sleep until the lock is released.
-    fn lock_slow(&self) -> LockResult
+    fn lock_slow(&self) -> LockResult<(), Infallible>
     {
         loop
         {
@@ -82,7 +79,7 @@ impl Os
                     )
                     .is_ok()
                 {
-                    return LockResult::Ok(LockStatus::Done);
+                    return LockResult::Ok(LockStatus::Done(()));
                 }
                 continue;
             }
@@ -113,7 +110,7 @@ impl Os
     /// Similar to [`lock_slow`], this method parks the current thread using
     /// `futex_wait` if the lock is held by a writer or if there are already
     /// waiters (to prevent reader starvation of writers).
-    fn share_slow(&self) -> LockResult
+    fn share_slow(&self) -> LockResult<(), Infallible>
     {
         loop
         {
@@ -156,7 +153,7 @@ impl Os
                 )
                 .is_ok()
             {
-                return LockResult::Ok(LockStatus::Done);
+                return LockResult::Ok(LockStatus::Done(()));
             }
         }
     }
@@ -165,6 +162,7 @@ impl Os
 unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
+    type Meta = ();
 
     /// Attempts to acquire the lock for exclusive (writer) access.
     ///
@@ -176,7 +174,10 @@ unsafe impl LockPolicy for Os
     ///
     /// The caller must ensure proper memory ordering when accessing protected
     /// data.
-    unsafe fn try_lock(&self, current_iteration: usize) -> LockResult
+    unsafe fn try_lock(
+        &self,
+        current_iteration: usize,
+    ) -> LockResult<Self::Meta, Infallible>
     {
         match self.0.compare_exchange(
             0,
@@ -185,7 +186,7 @@ unsafe impl LockPolicy for Os
             Ordering::Relaxed,
         )
         {
-            Ok(_) => LockResult::Ok(LockStatus::Done),
+            Ok(_) => LockResult::Ok(LockStatus::Done(())),
             Err(_) if current_iteration >= DEFAULT_EPSILON => self.lock_slow(),
             Err(_) => LockResult::Ok(LockStatus::Fail),
         }
@@ -199,7 +200,7 @@ unsafe impl LockPolicy for Os
     /// # Safety
     ///
     /// The caller must ensure that they currently hold the exclusive lock.
-    unsafe fn free(&self)
+    unsafe fn free(&self, _: &Self::Meta)
     {
         let old = self.0.swap(0, Ordering::Release);
         if old & WAITERS != 0
@@ -225,7 +226,10 @@ unsafe impl SharingPolicy for Os
     /// This method tries to increment the reader count. If a writer holds the
     /// lock, or if there are waiters (to maintain writer preference), it may
     /// fall back to the [`share_slow`] path.
-    fn try_share(&self, current_iteration: usize) -> LockResult
+    fn try_share(
+        &self,
+        current_iteration: usize,
+    ) -> LockResult<Self::Meta, Infallible>
     {
         loop
         {
@@ -265,7 +269,7 @@ unsafe impl SharingPolicy for Os
                 Ordering::Relaxed,
             )
             {
-                Ok(_) => return LockResult::Ok(LockStatus::Done),
+                Ok(_) => return LockResult::Ok(LockStatus::Done(())),
                 Err(_) => continue,
             }
         }
@@ -275,7 +279,7 @@ unsafe impl SharingPolicy for Os
     ///
     /// If this was the last reader and there are threads waiting, it wakes
     /// one waiter (typically a writer).
-    fn free_share(&self)
+    fn free_share(&self, _: &Self::Meta)
     {
         let old = self.0.fetch_sub(1, Ordering::Release);
         let readers = old & READERS_MASK;

@@ -12,9 +12,8 @@
 //! policy. This gives the waiting writer a fair chance to acquire the lock
 //! once the current readers release it.
 
-use core::sync::atomic::{AtomicUsize, Ordering};
-
 use crate::traits::{LockPolicy, SharingPolicy};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A sharing-yielding (shield) lock wrapper.
 ///
@@ -99,6 +98,7 @@ unsafe impl<L> LockPolicy for Shield<L>
 where L: LockPolicy
 {
     type Error = ShieldError<L::Error>;
+    type Meta = <L as LockPolicy>::Meta;
 
     /// Attempts to acquire the lock for exclusive (writer) access.
     ///
@@ -113,11 +113,11 @@ where L: LockPolicy
     unsafe fn try_lock(
         &self,
         current_iteration: usize,
-    ) -> crate::LockResult<Self::Error>
+    ) -> crate::LockResult<Self::Meta, Self::Error>
     {
         match unsafe { self.inner.try_lock(current_iteration) }
         {
-            Ok(crate::LockStatus::Done) =>
+            Ok(crate::LockStatus::Done(meta)) =>
             {
                 // The writer successfully acquired the lock.
                 // Decrement the pending writer count if it's greater than zero.
@@ -126,7 +126,7 @@ where L: LockPolicy
                     Ordering::Relaxed,
                     |x| if x > 0 { Some(x - 1) } else { None },
                 );
-                Ok(crate::LockStatus::Done)
+                Ok(crate::LockStatus::Done(meta))
             },
             Ok(crate::LockStatus::Fail) =>
             {
@@ -148,9 +148,9 @@ where L: LockPolicy
     /// # Safety
     ///
     /// See [`LockPolicy::free`].
-    unsafe fn free(&self)
+    unsafe fn free(&self, meta: &Self::Meta)
     {
-        unsafe { self.inner.free() }
+        unsafe { self.inner.free(meta) }
     }
 
     /// Wakes all threads waiting on this lock.
@@ -173,7 +173,7 @@ where L: SharingPolicy
     fn try_share(
         &self,
         current_iteration: usize,
-    ) -> crate::LockResult<Self::Error>
+    ) -> crate::LockResult<Self::Meta, Self::Error>
     {
         if self.pending.load(Ordering::Acquire) != 0
         {
@@ -192,9 +192,9 @@ where L: SharingPolicy
     }
 
     /// Releases a shared (reader) lock.
-    fn free_share(&self)
+    fn free_share(&self, meta: &Self::Meta)
     {
-        self.inner.free_share();
+        self.inner.free_share(meta);
     }
 
     /// Wakes all threads waiting for a shared lock.

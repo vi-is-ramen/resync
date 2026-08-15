@@ -41,17 +41,19 @@ unsafe impl LockPolicy for Fake
 {
     type Error = FakeError;
 
+    type Meta = ();
+
     /// Always succeeds in acquiring the exclusive lock.
     unsafe fn try_lock(
         &self,
         _current_iteration: usize,
-    ) -> crate::LockResult<Self::Error>
+    ) -> crate::LockResult<Self::Meta, Self::Error>
     {
-        Ok(crate::LockStatus::Done)
+        Ok(crate::LockStatus::Done(()))
     }
 
     /// No-op release operation.
-    unsafe fn free(&self) {}
+    unsafe fn free(&self, _: &Self::Meta) {}
 
     /// No-op wake operation.
     fn wake_all(&self) {}
@@ -63,13 +65,13 @@ unsafe impl SharingPolicy for Fake
     fn try_share(
         &self,
         _current_iteration: usize,
-    ) -> crate::LockResult<Self::Error>
+    ) -> crate::LockResult<Self::Meta, Self::Error>
     {
-        Ok(crate::LockStatus::Done)
+        Ok(crate::LockStatus::Done(()))
     }
 
     /// No-op release operation.
-    fn free_share(&self) {}
+    fn free_share(&self, _: &Self::Meta) {}
 
     /// No-op wake operation.
     fn wake_readers(&self) {}

@@ -32,6 +32,7 @@ default = [ "std" ]
 std = [ "dep:libc", "dep:windows-sys" ]
 fake = []
 dev = []
+__lint = [ "std", "fake", "dev" ]
 
 [lints.rust]
 unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)', 'cfg(beta)', 'cfg(dev)'] }

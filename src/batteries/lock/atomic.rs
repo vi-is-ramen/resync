@@ -39,16 +39,16 @@ const WRITER: usize = usize::MAX;
 /// let lock = Atomic::new();
 ///
 /// // Acquire exclusive access
-/// assert_eq!(unsafe { lock.try_lock(0) }.unwrap(), LockStatus::Done);
+/// assert_eq!(unsafe { lock.try_lock(0) }.unwrap(), LockStatus::Done(()));
 ///
 /// // Release exclusive access
-/// unsafe { lock.free() };
+/// unsafe { lock.free(&()) };
 ///
 /// // Acquire shared access
-/// assert_eq!(lock.try_share(0).unwrap(), LockStatus::Done);
+/// assert_eq!(lock.try_share(0).unwrap(), LockStatus::Done(()));
 ///
 /// // Release shared access
-/// lock.free_share();
+/// lock.free_share(&());
 /// ```
 #[derive(Debug, Default)]
 #[repr(transparent)]
@@ -69,6 +69,7 @@ impl Atomic
 unsafe impl LockPolicy for Atomic
 {
     type Error = Infallible;
+    type Meta = ();
 
     /// Attempts to acquire the lock for exclusive (writer) access.
     ///
@@ -83,14 +84,14 @@ unsafe impl LockPolicy for Atomic
     unsafe fn try_lock(
         &self,
         _current_iteration: usize,
-    ) -> LockResult<Self::Error>
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         if self
             .0
             .compare_exchange(0, WRITER, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            Ok(LockStatus::Done)
+            Ok(LockStatus::Done(()))
         }
         else
         {
@@ -109,7 +110,7 @@ unsafe impl LockPolicy for Atomic
     /// The caller must ensure that they currently hold the exclusive lock.
     /// Calling this method when the lock is not held may corrupt the state
     /// and allow concurrent access to the protected data.
-    unsafe fn free(&self)
+    unsafe fn free(&self, _: &Self::Meta)
     {
         self.0.store(0, Ordering::Release);
     }
@@ -128,11 +129,15 @@ unsafe impl SharingPolicy for Atomic
     /// The caller must ensure that proper memory ordering is maintained.
     /// This implementation uses `Acquire` ordering on the successful
     /// compare-exchange to ensure visibility of prior writes.
-    fn try_share(&self, _current_iteration: usize) -> LockResult<Self::Error>
+    fn try_share(
+        &self,
+        _current_iteration: usize,
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
+
             if state == WRITER
             {
                 return Ok(LockStatus::Fail);
@@ -148,7 +153,7 @@ unsafe impl SharingPolicy for Atomic
                 )
                 .is_ok()
             {
-                return Ok(LockStatus::Done);
+                return Ok(LockStatus::Done(()));
             }
         }
     }
@@ -162,7 +167,7 @@ unsafe impl SharingPolicy for Atomic
     ///
     /// The caller must ensure that they currently hold a shared lock. Calling
     /// this method without holding a shared lock will corrupt the reader count.
-    fn free_share(&self)
+    fn free_share(&self, _: &Self::Meta)
     {
         self.0.fetch_sub(1, Ordering::Release);
     }

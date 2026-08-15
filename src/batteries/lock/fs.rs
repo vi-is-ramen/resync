@@ -93,16 +93,18 @@ unsafe impl LockPolicy for Fs
 {
     type Error = io::Error;
 
+    type Meta = ();
+
     unsafe fn try_lock(
         &self,
         _current_iteration: usize,
-    ) -> LockResult<Self::Error>
+    ) -> LockResult<Self::Meta, Self::Error>
     {
         let ret =
             unsafe { libc::flock(self.fd, libc::LOCK_EX | libc::LOCK_NB) };
         if ret == 0
         {
-            Ok(LockStatus::Done)
+            Ok(LockStatus::Done(()))
         }
         else
         {
@@ -118,7 +120,7 @@ unsafe impl LockPolicy for Fs
         }
     }
 
-    unsafe fn free(&self)
+    unsafe fn free(&self, _: &Self::Meta)
     {
         let _ = unsafe { libc::flock(self.fd, libc::LOCK_UN) };
     }

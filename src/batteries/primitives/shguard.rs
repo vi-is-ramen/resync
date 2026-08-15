@@ -4,9 +4,8 @@
 //! When this guard is dropped, the shared lock is automatically released
 //! via the [`SharingPolicy::free_share`] method.
 
+use crate::traits::{LockPolicy, SharingPolicy};
 use core::ops::Deref;
-
-use crate::traits::SharingPolicy;
 
 /// A shared RAII guard that provides shared (read) access to the protected
 /// data.
@@ -14,15 +13,16 @@ use crate::traits::SharingPolicy;
 /// When this guard is dropped, the shared lock is automatically released
 /// via the [`SharingPolicy::free_share`] method.
 #[allow(missing_debug_implementations)]
-pub struct ShGuard<'a, T, L>
-where L: SharingPolicy
+pub struct ShGuard<'a, T, L, M = <L as LockPolicy>::Meta>
+where L: SharingPolicy<Meta = M>
 {
     data: *const T,
     lock: &'a L,
+    meta: M,
 }
 
-impl<'a, T, L> ShGuard<'a, T, L>
-where L: SharingPolicy
+impl<'a, T, L, M> ShGuard<'a, T, L, M>
+where L: SharingPolicy<Meta = M>
 {
     /// Creates a new shared guard.
     ///
@@ -33,16 +33,16 @@ where L: SharingPolicy
     /// - The shared (reader) lock has been successfully acquired on `lock`.
     /// - No mutable references to the protected data exist while this guard is
     ///   alive.
-    pub fn new(data: *const T, lock: &'a L) -> Self
+    pub fn new(data: *const T, lock: &'a L, meta: M) -> Self
     {
-        Self { data, lock }
+        Self { data, lock, meta }
     }
 }
 
-impl<'a, T, L> core::fmt::Debug for ShGuard<'a, T, L>
+impl<'a, T, L, M> core::fmt::Debug for ShGuard<'a, T, L, M>
 where
     T: core::fmt::Debug,
-    L: SharingPolicy,
+    L: SharingPolicy<Meta = M>,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
@@ -54,17 +54,17 @@ where
     }
 }
 
-impl<'a, T, L> core::ops::Drop for ShGuard<'a, T, L>
-where L: SharingPolicy
+impl<'a, T, L, M> core::ops::Drop for ShGuard<'a, T, L, M>
+where L: SharingPolicy<Meta = M>
 {
     fn drop(&mut self)
     {
-        self.lock.free_share();
+        self.lock.free_share(&self.meta);
     }
 }
 
-impl<'a, T, L> Deref for ShGuard<'a, T, L>
-where L: SharingPolicy
+impl<'a, T, L, M> Deref for ShGuard<'a, T, L, M>
+where L: SharingPolicy<Meta = M>
 {
     type Target = T;
 
