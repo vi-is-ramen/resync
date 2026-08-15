@@ -125,7 +125,7 @@ where Self: Default
     /// The error type for unrecoverable failures.
     ///
     /// Use [`Infallible`] for locks that never fail.
-    type Error;
+    type Error: core::fmt::Debug;
 
     /// Attempt to acquire the lock.
     ///

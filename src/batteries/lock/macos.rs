@@ -1,6 +1,28 @@
+//! A macOS-specific implementation of [`LockPolicy`] and [`SharingPolicy`]
+//! using `pthread_rwlock_t`.
+//!
+//! This module provides a lock that wraps the POSIX `pthread_rwlock_t`
+//! primitive provided by the macOS `libc`. It supports both exclusive (writer)
+//! and shared (reader) access natively through the operating system's threading
+//! library.
+//!
+//! # Design
+//!
+//! Unlike the Linux futex implementation which manages state in user-space and
+//! only falls back to the kernel on contention, this implementation delegates
+//! all lock management, thread parking, and waking entirely to the macOS kernel
+//! via `pthread_rwlock_*` functions. This makes it simpler but potentially
+//! slightly slower for uncontended locks compared to a pure user-space atomic
+//! lock.
+
 use crate::traits::{LockPolicy, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
+/// A macOS `pthread_rwlock_t`-based lock and read-write lock implementation.
+///
+/// This struct wraps a `libc::pthread_rwlock_t` inside an
+/// [`core::cell::UnsafeCell`] to allow interior mutability required by the
+/// POSIX API.
 #[allow(missing_debug_implementations)]
 pub struct Os
 {
@@ -9,6 +31,14 @@ pub struct Os
 
 impl Os
 {
+    /// Creates a new, unlocked `Os` lock.
+    ///
+    /// This initializes the underlying `pthread_rwlock_t` using
+    /// `pthread_rwlock_init`.
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if `pthread_rwlock_init` fails.
     pub fn new() -> Self
     {
         let rwlock = core::cell::UnsafeCell::new(unsafe {
@@ -33,6 +63,12 @@ impl core::default::Default for Os
 
 impl Drop for Os
 {
+    /// Destroys the underlying `pthread_rwlock_t`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that no threads are currently waiting on or
+    /// holding the lock when it is dropped.
     fn drop(&mut self)
     {
         unsafe {
@@ -41,6 +77,9 @@ impl Drop for Os
     }
 }
 
+// SAFETY:
+// The underlying `pthread_rwlock_t` is designed to be shared across
+// threads.
 unsafe impl Send for Os {}
 unsafe impl Sync for Os {}
 
@@ -48,6 +87,15 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
+    /// Attempts to acquire the lock for exclusive (writer) access.
+    ///
+    /// This method calls `pthread_rwlock_trywrlock`. If the lock is already
+    /// held, it returns [`LockStatus::Fail`] immediately without blocking.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure proper synchronization when accessing protected
+    /// data.
     unsafe fn try_lock(&self, _current_iteration: usize) -> LockResult
     {
         let result =
@@ -63,12 +111,24 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Checks the current state of the lock.
+    ///
+    /// # Note
+    ///
+    /// `pthread_rwlock_t` does not provide a non-modifying way to check if
+    /// the lock is currently held. Therefore, this method always returns
+    /// [`LockStatus::Done`] to avoid violating the "no state change" invariant
+    /// and to prevent potential deadlocks from polling.
     fn get_state(&self) -> LockResult
     {
-        // pthread_rwlock doesn't provide a non-modifying check
         LockResult::Ok(LockStatus::Done)
     }
 
+    /// Releases the exclusive (writer) lock.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that they currently hold the exclusive lock.
     unsafe fn free(&self)
     {
         unsafe {
@@ -76,14 +136,19 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    fn wake_all(&self)
-    {
-        // pthread_rwlock handles waking automatically
-    }
+    /// Wakes all threads waiting for an exclusive lock.
+    ///
+    /// This is a no-op because `pthread_rwlock_t` handles thread waking
+    /// automatically upon release.
+    fn wake_all(&self) {}
 }
 
 unsafe impl SharingPolicy for Os
 {
+    /// Attempts to acquire the lock for shared (reader) access.
+    ///
+    /// This method calls `pthread_rwlock_tryrdlock`. If the lock is held
+    /// exclusively by a writer, it returns [`LockStatus::Fail`] immediately.
     fn try_share(&self, _current_iteration: usize) -> LockResult
     {
         let result =
@@ -99,6 +164,7 @@ unsafe impl SharingPolicy for Os
         }
     }
 
+    /// Releases a shared (reader) lock.
     fn free_share(&self)
     {
         unsafe {
@@ -106,8 +172,9 @@ unsafe impl SharingPolicy for Os
         }
     }
 
-    fn wake_readers(&self)
-    {
-        // pthread_rwlock handles waking automatically
-    }
+    /// Wakes all threads waiting for a shared lock.
+    ///
+    /// This is a no-op because `pthread_rwlock_t` handles thread waking
+    /// automatically upon release.
+    fn wake_readers(&self) {}
 }

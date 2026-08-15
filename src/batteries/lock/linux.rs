@@ -1,30 +1,69 @@
+//! A Linux-specific implementation of [`LockPolicy`] and [`SharingPolicy`]
+//! using futexes.
+//!
+//! This module provides a highly efficient lock that uses an [`AtomicU32`] for
+//! fast-path user-space acquisition and falls back to the Linux `futex` system
+//! call for parking and waking threads when contention occurs.
+//!
+//! # Design
+//!
+//! The lock state is packed into a single `u32`:
+//! - **Bit 31 (`WRITER`)**: Set if the lock is held exclusively by a writer.
+//! - **Bit 30 (`WAITERS`)**: Set if there are threads parked (waiting) on the
+//!   lock.
+//! - **Bits 0–29 (`READERS_MASK`)**: The count of concurrent readers.
+//!
+//! This design allows the lock to support both exclusive (writer) and shared
+//! (reader) access while minimizing system call overhead. Threads only enter
+//! the kernel via `futex_wait` when they fail to acquire the lock after a
+//! certain number of spin iterations (`DEFAULT_EPSILON`).
+
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use crate::traits::{LockPolicy, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
-// TODO: make Epsilon generic parameter of Os
+/// The number of fast-path iterations before falling back to the kernel futex.
 const DEFAULT_EPSILON: usize = 10000;
 
+/// Bitmask indicating that the lock is held exclusively by a writer.
 const WRITER: u32 = 1 << 31;
 
+/// Bitmask indicating that there are threads waiting (parked) on the lock.
 const WAITERS: u32 = 1 << 30;
 
+/// Bitmask for extracting the reader count from the lock state.
 const READERS_MASK: u32 = !(WRITER | WAITERS);
 
-/// .
+/// A Linux futex-based lock and read-write lock implementation.
+///
+/// This struct provides high-performance synchronization on Linux by combining
+/// user-space atomic operations with kernel-space thread parking via the
+/// `futex` system call.
+///
+/// It implements both [`LockPolicy`] and [`SharingPolicy`], making it suitable
+/// for use as a standard mutex or a read-write lock.
 #[derive(Default, Debug)]
 #[repr(transparent)]
 pub struct Os(AtomicU32);
 
 impl Os
 {
-    /// .
+    /// Creates a new, unlocked `Os` lock.
+    ///
+    /// This is a `const` function, allowing the lock to be initialized in
+    /// static variables.
     pub const fn new() -> Self
     {
         Self(AtomicU32::new(0))
     }
 
+    /// The slow path for acquiring an exclusive (writer) lock.
+    ///
+    /// This method is called when the fast-path atomic exchange fails
+    /// repeatedly. It sets the `WAITERS` flag to indicate that threads are
+    /// parking, and then invokes `futex_wait` to put the current thread to
+    /// sleep until the lock is released.
     fn lock_slow(&self) -> LockResult
     {
         loop
@@ -69,6 +108,11 @@ impl Os
         }
     }
 
+    /// The slow path for acquiring a shared (reader) lock.
+    ///
+    /// Similar to [`lock_slow`], this method parks the current thread using
+    /// `futex_wait` if the lock is held by a writer or if there are already
+    /// waiters (to prevent reader starvation of writers).
     fn share_slow(&self) -> LockResult
     {
         loop
@@ -122,6 +166,16 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
+    /// Attempts to acquire the lock for exclusive (writer) access.
+    ///
+    /// This method first tries a fast-path atomic compare-exchange. If it
+    /// fails and the `current_iteration` exceeds [`DEFAULT_EPSILON`], it falls
+    /// back to the kernel-space [`lock_slow`] path using futexes.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure proper memory ordering when accessing protected
+    /// data.
     unsafe fn try_lock(&self, current_iteration: usize) -> LockResult
     {
         match self.0.compare_exchange(
@@ -137,6 +191,7 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Checks the current state of the lock without modifying it.
     fn get_state(&self) -> LockResult
     {
         if self.0.load(Ordering::Relaxed) == 0
@@ -149,6 +204,14 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Releases the exclusive (writer) lock.
+    ///
+    /// If there are threads waiting on the lock (indicated by the `WAITERS`
+    /// flag), this method wakes them up using `futex_wake`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that they currently hold the exclusive lock.
     unsafe fn free(&self)
     {
         let old = self.0.swap(0, Ordering::Release);
@@ -158,6 +221,7 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Wakes all threads waiting for an exclusive lock.
     fn wake_all(&self)
     {
         if self.0.load(Ordering::Relaxed) & WAITERS != 0
@@ -169,13 +233,18 @@ unsafe impl LockPolicy for Os
 
 unsafe impl SharingPolicy for Os
 {
+    /// Attempts to acquire the lock for shared (reader) access.
+    ///
+    /// This method tries to increment the reader count. If a writer holds the
+    /// lock, or if there are waiters (to maintain writer preference), it may
+    /// fall back to the [`share_slow`] path.
     fn try_share(&self, current_iteration: usize) -> LockResult
     {
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
 
-            // Writer holds the lock → fail or slow path
+            // Writer holds the lock -> fail or slow path
             if state & WRITER != 0
             {
                 return if current_iteration >= DEFAULT_EPSILON
@@ -215,6 +284,10 @@ unsafe impl SharingPolicy for Os
         }
     }
 
+    /// Releases a shared (reader) lock.
+    ///
+    /// If this was the last reader and there are threads waiting, it wakes
+    /// one waiter (typically a writer).
     fn free_share(&self)
     {
         let old = self.0.fetch_sub(1, Ordering::Release);
@@ -227,6 +300,7 @@ unsafe impl SharingPolicy for Os
         }
     }
 
+    /// Wakes all threads waiting for a shared (reader) lock.
     fn wake_readers(&self)
     {
         if self.0.load(Ordering::Relaxed) & WAITERS != 0
@@ -236,10 +310,20 @@ unsafe impl SharingPolicy for Os
     }
 }
 
+/// Linux `futex` operation constants.
 const FUTEX_WAIT: i32 = 0;
 const FUTEX_WAKE: i32 = 1;
 const FUTEX_PRIVATE_FLAG: i32 = 128;
 
+/// Invokes the Linux `futex` system call to put the current thread to sleep.
+///
+/// The thread will sleep until the value at `atomic` changes from `expected`,
+/// or until it is woken by a signal or another thread calling [`futex_wake`].
+///
+/// # Safety
+///
+/// This function performs a raw system call. The caller must ensure that
+/// `atomic` points to valid, aligned memory that is safe to pass to the kernel.
 #[inline]
 fn futex_wait(atomic: &AtomicU32, expected: u32)
 {
@@ -254,6 +338,14 @@ fn futex_wait(atomic: &AtomicU32, expected: u32)
     }
 }
 
+/// Invokes the Linux `futex` system call to wake sleeping threads.
+///
+/// Wakes up to `count` threads waiting on the futex at `atomic`.
+///
+/// # Safety
+///
+/// This function performs a raw system call. The caller must ensure that
+/// `atomic` points to valid, aligned memory.
 #[inline]
 fn futex_wake(atomic: &AtomicU32, count: i32)
 {

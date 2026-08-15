@@ -1,6 +1,23 @@
+//! A Windows-specific implementation of [`LockPolicy`] and [`SharingPolicy`]
+//! using Slim Reader/Writer (SRW) locks.
+//!
+//! This module provides a lock that wraps the Windows `SRWLOCK` primitive.
+//! SRW locks are highly efficient, kernel-managed synchronization primitives
+//! that support both exclusive (writer) and shared (reader) access.
+//!
+//! # Design
+//!
+//! Unlike futexes or user-space spinlocks, `SRWLOCK` does not require explicit
+//! initialization or destruction, making it very lightweight in terms of memory
+//! and lifecycle management. It also handles thread parking and waking
+//! automatically within the Windows kernel.
+
 use crate::traits::{LockPolicy, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
+/// A Windows SRW lock-based implementation of a read-write lock.
+///
+/// This struct wraps a `windows_sys::Win32::System::Threading::SRWLOCK`.
 #[allow(missing_debug_implementations)]
 #[repr(transparent)]
 pub struct Os
@@ -10,6 +27,10 @@ pub struct Os
 
 impl Os
 {
+    /// Creates a new, unlocked `Os` lock.
+    ///
+    /// `SRWLOCK` does not require explicit initialization, so this simply
+    /// sets the internal pointer to null.
     pub fn new() -> Self
     {
         Self {
@@ -28,6 +49,8 @@ impl core::default::Default for Os
     }
 }
 
+// SAFETY:
+// SRWLOCK is designed to be shared across threads.
 unsafe impl Send for Os {}
 unsafe impl Sync for Os {}
 
@@ -35,6 +58,15 @@ unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
+    /// Attempts to acquire the lock for exclusive (writer) access.
+    ///
+    /// This method calls `TryAcquireSRWLockExclusive`. If the lock is already
+    /// held, it returns [`LockStatus::Fail`] immediately without blocking.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure proper synchronization when accessing protected
+    /// data.
     unsafe fn try_lock(&self, _current_iteration: usize) -> LockResult
     {
         let result = unsafe {
@@ -53,14 +85,24 @@ unsafe impl LockPolicy for Os
         }
     }
 
+    /// Checks the current state of the lock.
+    ///
+    /// # Note
+    ///
+    /// `SRWLOCK` does not provide a non-modifying way to check if the lock is
+    /// currently held. Therefore, this method always returns
+    /// [`LockStatus::Done`] to avoid violating the "no state change"
+    /// invariant.
     fn get_state(&self) -> LockResult
     {
-        // SRWLOCK doesn't provide a non-modifying check, so we assume it always
-        // unlocked. It's much better and doesn't violate invariant "no
-        // state change"
         LockResult::Ok(LockStatus::Done)
     }
 
+    /// Releases the exclusive (writer) lock.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that they currently hold the exclusive lock.
     unsafe fn free(&self)
     {
         unsafe {
@@ -70,14 +112,18 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    fn wake_all(&self)
-    {
-        // SRWLOCK handles waking automatically
-    }
+    /// Wakes all threads waiting for an exclusive lock.
+    ///
+    /// This is a no-op because `SRWLOCK` handles thread waking automatically.
+    fn wake_all(&self) {}
 }
 
 unsafe impl SharingPolicy for Os
 {
+    /// Attempts to acquire the lock for shared (reader) access.
+    ///
+    /// This method calls `TryAcquireSRWLockShared`. If the lock is held
+    /// exclusively by a writer, it returns [`LockStatus::Fail`] immediately.
     fn try_share(&self, _current_iteration: usize) -> LockResult
     {
         let result = unsafe {
@@ -96,6 +142,7 @@ unsafe impl SharingPolicy for Os
         }
     }
 
+    /// Releases a shared (reader) lock.
     fn free_share(&self)
     {
         unsafe {
@@ -105,8 +152,8 @@ unsafe impl SharingPolicy for Os
         }
     }
 
-    fn wake_readers(&self)
-    {
-        // SRWLOCK handles waking automatically
-    }
+    /// Wakes all threads waiting for a shared lock.
+    ///
+    /// This is a no-op because `SRWLOCK` handles thread waking automatically.
+    fn wake_readers(&self) {}
 }
