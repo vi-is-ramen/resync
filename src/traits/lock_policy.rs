@@ -100,18 +100,6 @@ use core::convert::Infallible;
 ///     {
 ///         self.0.store(false, Ordering::Release);
 ///     }
-///
-///     # // fn get_state(&self) -> LockResult<Self::Error>
-///     # // {
-///         # // if self.0.load(Ordering::Relaxed)
-///         # // {
-///             # // Ok(LockStatus::Fail)
-///         # // }
-///         # // else
-///         # // {
-///             # // Ok(LockStatus::Done)
-///         # // }
-///     # // }
 /// }
 /// ```
 ///

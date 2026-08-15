@@ -111,31 +111,6 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    /// Checks the current state of the lock.
-    ///
-    /// # Note
-    ///
-    /// `pthread_rwlock_t` does not provide a non-modifying way to check if
-    /// the lock is currently held. Therefore, this method always returns
-    /// [`LockStatus::Done`] to avoid violating the "no state change" invariant
-    /// and to prevent potential deadlocks from polling.
-    fn get_state(&self) -> LockResult
-    {
-        LockResult::Ok(LockStatus::Done)
-    }
-
-    /// Releases the exclusive (writer) lock.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that they currently hold the exclusive lock.
-    unsafe fn free(&self)
-    {
-        unsafe {
-            libc::pthread_rwlock_unlock(self.rwlock.get());
-        }
-    }
-
     /// Wakes all threads waiting for an exclusive lock.
     ///
     /// This is a no-op because `pthread_rwlock_t` handles thread waking

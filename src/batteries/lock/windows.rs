@@ -85,33 +85,6 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    /// Checks the current state of the lock.
-    ///
-    /// # Note
-    ///
-    /// `SRWLOCK` does not provide a non-modifying way to check if the lock is
-    /// currently held. Therefore, this method always returns
-    /// [`LockStatus::Done`] to avoid violating the "no state change"
-    /// invariant.
-    fn get_state(&self) -> LockResult
-    {
-        LockResult::Ok(LockStatus::Done)
-    }
-
-    /// Releases the exclusive (writer) lock.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that they currently hold the exclusive lock.
-    unsafe fn free(&self)
-    {
-        unsafe {
-            windows_sys::Win32::System::Threading::ReleaseSRWLockExclusive(
-                &self.srwlock as *const _ as *mut _,
-            );
-        }
-    }
-
     /// Wakes all threads waiting for an exclusive lock.
     ///
     /// This is a no-op because `SRWLOCK` handles thread waking automatically.

@@ -122,11 +122,4 @@ unsafe impl LockPolicy for Fs
     {
         let _ = unsafe { libc::flock(self.fd, libc::LOCK_UN) };
     }
-
-    // fn get_state(&self) -> LockResult<Self::Error>
-    // {
-    //     // Flock does not provide a non‑modifying way to check state.
-    //     // We conservatively return `Fail` to avoid misleading results.
-    //     Ok(LockStatus::Fail)
-    // }
 }

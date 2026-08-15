@@ -136,19 +136,6 @@ use core::convert::Infallible;
 ///         // Release writer lock: store 0.
 ///         self.0.store(0, Ordering::Release);
 ///     }
-///
-///     # // fn get_state(&self) -> LockResult<Self::Error>
-///     # // {
-///         # // let state = self.0.load(Ordering::Relaxed);
-///         # // if state == 0
-///         # // {
-///             # // Ok(LockStatus::Done)
-///         # // }
-///         # // else
-///         # // {
-///             # // Ok(LockStatus::Fail)
-///         # // }
-///     # // }
 /// }
 ///
 /// unsafe impl SharingPolicy for RwSpinPolicy

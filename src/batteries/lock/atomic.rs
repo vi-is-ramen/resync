@@ -98,25 +98,6 @@ unsafe impl LockPolicy for Atomic
         }
     }
 
-    // /// Checks the current state of the lock without modifying it.
-    // ///
-    // /// # Returns
-    // ///
-    // /// - [`LockStatus::Done`]: The lock is currently free (`state == 0`).
-    // /// - [`LockStatus::Fail`]: The lock is currently held by a writer or one
-    // or ///   more readers.
-    // fn get_state(&self) -> LockResult<Self::Error>
-    // {
-    //     if self.0.load(Ordering::Relaxed) == 0
-    //     {
-    //         Ok(LockStatus::Done)
-    //     }
-    //     else
-    //     {
-    //         Ok(LockStatus::Fail)
-    //     }
-    // }
-
     /// Releases the exclusive (writer) lock.
     ///
     /// This method resets the state to `0` using `Release` ordering, ensuring
