@@ -24,21 +24,21 @@ pub use shield::*;
 pub use fs::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "linux")))]
-#[cfg_attr(feature = "__lint", doc(hidden))]
+#[doc(hidden)]
 pub mod linux;
 
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub use linux::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "windows")))]
-#[cfg_attr(feature = "__lint", doc(hidden))]
+#[doc(hidden)]
 pub mod windows;
 
 #[cfg(all(feature = "std", target_os = "windows"))]
 pub use windows::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "macos")))]
-#[cfg_attr(feature = "__lint", doc(hidden))]
+#[doc(hidden)]
 pub mod macos;
 
 #[cfg(all(feature = "std", target_os = "macos"))]
@@ -57,7 +57,7 @@ pub use macos::*;
         ))
     )
 ))]
-#[cfg_attr(feature = "__lint", doc(hidden))]
+#[doc(hidden)]
 pub mod fallback
 {
     pub type Os = super::Atomic;
@@ -68,3 +68,10 @@ pub mod fallback
     not(any(target_os = "linux", target_os = "windows", target_os = "macos",))
 ))]
 pub use fallback::*;
+
+#[cfg(any(feature = "__lint", not(feature = "std")))]
+#[doc(hidden)]
+pub mod irq;
+
+#[cfg(not(feature = "std"))]
+pub use irq::*;
