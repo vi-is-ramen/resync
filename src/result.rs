@@ -100,3 +100,26 @@ pub type LockResult<E = core::convert::Infallible> = Result<LockStatus, E>;
 ///
 /// The error type `E` is determined by the retry implementation.
 pub type RetryResult<E = core::convert::Infallible> = Result<(), E>;
+
+/// Error returned by non‑blocking lock acquisition attempts (e.g., `try_lock`).
+///
+/// This error distinguishes between transient contention and fatal lock errors.
+#[derive(Debug)]
+pub enum TryLockError<E>
+{
+    /// The lock is currently held by another owner (or writer).
+    Contention,
+    /// An unrecoverable error occurred in the underlying lock policy.
+    Lock(E),
+}
+
+/// Error returned by blocking lock acquisition attempts (e.g., `lock`) when
+/// the retry loop aborts or the lock policy fails.
+#[derive(Debug)]
+pub enum LockError<LE, RE>
+{
+    /// An unrecoverable error occurred in the underlying lock policy.
+    Lock(LE),
+    /// The retry policy aborted the acquisition loop (e.g., due to a timeout).
+    Retry(RE),
+}

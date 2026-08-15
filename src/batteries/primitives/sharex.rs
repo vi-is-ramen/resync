@@ -28,32 +28,9 @@
 //! } // Writer is dropped here.
 //! ```
 
-use crate::LockStatus;
 use crate::traits::{RetryPolicy, SharingPolicy};
+use crate::{ExGuard, LockError, LockStatus, ShGuard, TryLockError};
 use core::cell::UnsafeCell;
-use core::ops::{Deref, DerefMut};
-
-/// Errors that can occur when acquiring a [`Sharex`] lock via `read` or
-/// `write`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SharexError<LE, RE>
-{
-    /// An unrecoverable error occurred in the underlying lock policy.
-    Lock(LE),
-    /// The retry policy aborted the acquisition loop (e.g., due to a timeout).
-    Retry(RE),
-}
-
-/// Error returned by `try_read` and `try_write` when the lock is contended or
-/// fails.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryLockError<LE>
-{
-    /// The lock is currently held by another thread.
-    Contention,
-    /// An unrecoverable error occurred in the underlying lock policy.
-    Lock(LE),
-}
 
 /// A shareable-exclusive (read-write) lock primitive that protects a value of
 /// type `T`.
@@ -113,84 +90,6 @@ where
     }
 }
 
-/// A RAII guard that provides shared (read) access to the protected data.
-///
-/// When this guard is dropped, the shared lock is automatically released
-/// via the [`SharingPolicy::free_share`] method.
-#[allow(missing_debug_implementations)]
-pub struct ReadGuard<'a, T, L: SharingPolicy>
-{
-    data: *const T,
-    lock: &'a L,
-}
-
-impl<'a, T, L: SharingPolicy> core::ops::Drop for ReadGuard<'a, T, L>
-{
-    /// Releases the shared lock held by this guard.
-    fn drop(&mut self)
-    {
-        self.lock.free_share();
-    }
-}
-
-impl<'a, T, L: SharingPolicy> Deref for ReadGuard<'a, T, L>
-{
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target
-    {
-        // SAFETY: The guard guarantees shared access to the data, and no
-        // mutable references can exist while this guard is alive.
-        unsafe { self.data.as_ref_unchecked() }
-    }
-}
-
-/// A RAII guard that provides exclusive (write) access to the protected data.
-///
-/// When this guard is dropped, the exclusive lock is automatically released
-/// via the [`crate::traits::LockPolicy::free`] method.
-#[allow(missing_debug_implementations)]
-pub struct WriteGuard<'a, T, L: SharingPolicy>
-{
-    data: *mut T,
-    lock: &'a L,
-}
-
-impl<'a, T, L: SharingPolicy> core::ops::Drop for WriteGuard<'a, T, L>
-{
-    /// Releases the exclusive lock held by this guard.
-    ///
-    /// # Safety
-    ///
-    /// This calls the unsafe `free` method on the underlying lock policy.
-    /// It is safe here because the guard's existence guarantees that the
-    /// exclusive lock is currently held by the current thread.
-    fn drop(&mut self)
-    {
-        unsafe { self.lock.free() };
-    }
-}
-
-impl<'a, T, L: SharingPolicy> Deref for WriteGuard<'a, T, L>
-{
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target
-    {
-        // SAFETY: The guard guarantees exclusive access to the data.
-        unsafe { self.data.as_ref_unchecked() }
-    }
-}
-
-impl<'a, T, L: SharingPolicy> DerefMut for WriteGuard<'a, T, L>
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        // SAFETY: The guard guarantees exclusive access to the data.
-        unsafe { self.data.as_mut_unchecked() }
-    }
-}
-
 impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
 {
     /// Creates a new `Sharex` lock protecting the given `value`.
@@ -218,16 +117,15 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
     /// - `Err(TryLockError::Contention)`: The lock is currently held
     ///   exclusively.
     /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred.
-    pub fn try_read(
-        &self,
-    ) -> Result<ReadGuard<'_, T, L>, TryLockError<L::Error>>
+    pub fn try_read(&self)
+    -> Result<ShGuard<'_, T, L>, TryLockError<L::Error>>
     {
         match self.lock.try_share(0)
         {
-            Ok(LockStatus::Done) => Ok(ReadGuard {
-                data: self.inner.get(),
-                lock: &self.lock,
-            }),
+            Ok(LockStatus::Done) =>
+            {
+                Ok(ShGuard::new(self.inner.get(), &self.lock))
+            },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
         }
@@ -244,16 +142,15 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
     /// - `Ok(guard)`: The exclusive lock was successfully acquired.
     /// - `Err(TryLockError::Contention)`: The lock is currently held.
     /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred.
-    pub fn try_write(
-        &self,
-    ) -> Result<WriteGuard<'_, T, L>, TryLockError<L::Error>>
+    pub fn try_write(&self)
+    -> Result<ExGuard<'_, T, L>, TryLockError<L::Error>>
     {
         match unsafe { self.lock.try_lock(0) }
         {
-            Ok(LockStatus::Done) => Ok(WriteGuard {
-                data: self.inner.get(),
-                lock: &self.lock,
-            }),
+            Ok(LockStatus::Done) =>
+            {
+                Ok(ExGuard::new(self.inner.get(), &self.lock))
+            },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
         }
@@ -269,13 +166,13 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
     /// # Returns
     ///
     /// - `Ok(guard)`: The shared lock was successfully acquired.
-    /// - `Err(SharexError::Lock(e))`: An unrecoverable error occurred in the
-    ///   lock policy.
-    /// - `Err(SharexError::Retry(e))`: The retry policy aborted the acquisition
+    /// - `Err(LockError::Lock(e))`: An unrecoverable error occurred in the lock
+    ///   policy.
+    /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
     ///   loop.
     pub fn read(
         &self,
-    ) -> Result<ReadGuard<'_, T, L>, SharexError<L::Error, R::Error>>
+    ) -> Result<ShGuard<'_, T, L>, LockError<L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -286,19 +183,16 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
             {
                 Ok(LockStatus::Done) =>
                 {
-                    return Ok(ReadGuard {
-                        data: self.inner.get(),
-                        lock: &self.lock,
-                    });
+                    return Ok(ShGuard::new(self.inner.get(), &self.lock));
                 },
                 Ok(LockStatus::Fail) =>
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(SharexError::Retry(e));
+                        return Err(LockError::Retry(e));
                     }
                 },
-                Err(e) => return Err(SharexError::Lock(e)),
+                Err(e) => return Err(LockError::Lock(e)),
             }
         }
     }
@@ -314,13 +208,13 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
     /// # Returns
     ///
     /// - `Ok(guard)`: The exclusive lock was successfully acquired.
-    /// - `Err(SharexError::Lock(e))`: An unrecoverable error occurred in the
-    ///   lock policy.
-    /// - `Err(SharexError::Retry(e))`: The retry policy aborted the acquisition
+    /// - `Err(LockError::Lock(e))`: An unrecoverable error occurred in the lock
+    ///   policy.
+    /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
     ///   loop.
     pub fn write(
         &self,
-    ) -> Result<WriteGuard<'_, T, L>, SharexError<L::Error, R::Error>>
+    ) -> Result<ExGuard<'_, T, L>, LockError<L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -331,20 +225,99 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
             {
                 Ok(LockStatus::Done) =>
                 {
-                    return Ok(WriteGuard {
-                        data: self.inner.get(),
-                        lock: &self.lock,
-                    });
+                    return Ok(ExGuard::new(self.inner.get(), &self.lock));
                 },
                 Ok(LockStatus::Fail) =>
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(SharexError::Retry(e));
+                        return Err(LockError::Retry(e));
                     }
                 },
-                Err(e) => return Err(SharexError::Lock(e)),
+                Err(e) => return Err(LockError::Lock(e)),
             }
         }
+    }
+
+    /// Exchanges the protected value with `new_value`, returning the old value.
+    ///
+    /// This acquires an exclusive write lock before performing the exchange.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(old_value)`: Exchange succeeded.
+    /// - `Err(LockError::Lock(e))`: Unrecoverable lock error.
+    /// - `Err(LockError::Retry(e))`: Retry policy aborted.
+    pub fn exchange(
+        &self,
+        new_value: T,
+    ) -> Result<T, LockError<L::Error, R::Error>>
+    {
+        let guard = self.write()?;
+        Ok(guard.exchange(new_value))
+    }
+
+    /// Non‑blocking version of [`exchange`](Self::exchange).
+    ///
+    /// Attempts to acquire a write lock without waiting. If successful,
+    /// exchanges the protected value with `new_value`, returns the old
+    /// value, and releases the lock.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(old_value)`: The lock was immediately available and the exchange
+    ///   succeeded.
+    /// - `Err(TryLockError::Contention)`: The lock is currently held (by any
+    ///   writer or reader).
+    /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred in the
+    ///   lock policy.
+    pub fn try_exchange(
+        &self,
+        new_value: T,
+    ) -> Result<T, TryLockError<L::Error>>
+    {
+        Ok(self.try_write()?.exchange(new_value))
+    }
+}
+
+impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
+where T: Default
+{
+    /// Takes the value out of the mutex, leaving a `Default::default()` value
+    /// in its place.
+    ///
+    /// This is equivalent to acquiring the lock and calling [`core::mem::take`]
+    /// on the protected data.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(value)`: The lock was successfully acquired and the value was
+    ///   taken.
+    /// - `Err(LockError::Lock(e))`: An unrecoverable error occurred in the lock
+    ///   policy.
+    /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
+    ///   loop.
+    pub fn take(&self) -> Result<T, LockError<L::Error, R::Error>>
+    {
+        Ok(self.write()?.take())
+    }
+
+    /// Non‑blocking version of a `take` operation.
+    ///
+    /// Attempts to acquire a write lock without waiting. If successful, takes
+    /// the protected value, replaces it with `Default::default()`, and
+    /// releases the lock.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(value)`: The lock was immediately available and the value was
+    ///   taken.
+    /// - `Err(TryLockError::Contention)`: The lock is currently held (by any
+    ///   writer or reader).
+    /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred in the
+    ///   lock policy.
+    pub fn try_take(&self) -> Result<T, TryLockError<L::Error>>
+    {
+        Ok(self.try_write()?.take())
     }
 }

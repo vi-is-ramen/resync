@@ -66,8 +66,8 @@ use core::convert::Infallible;
 ///
 /// # Required Super‑trait
 ///
-/// `Self: LockPolicy + Default` – Every sharing policy must also implement the
-/// exclusive‑lock policy and be default‑constructible.
+/// `Self: LockPolicy` – Every sharing policy must also implement the
+/// exclusive‑lock policy.
 ///
 /// # Adaptive Behaviour
 ///

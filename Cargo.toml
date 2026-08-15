@@ -2,6 +2,7 @@
 name = "resync"
 version = "0.6.0-dev.0"
 edition = "2024"
+rust-version = "1.95.0"
 workspace = "testing/util"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
 license = "MIT OR Apache-2.0"

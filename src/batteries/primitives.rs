@@ -7,8 +7,12 @@
 //! [`SharingPolicy`](crate::traits::SharingPolicy) and a
 //! [`RetryPolicy`](crate::traits::RetryPolicy) into a safe, RAII-based API.
 
+mod exguard;
 mod mutex;
 mod sharex;
+mod shguard;
 
+pub use exguard::*;
 pub use mutex::*;
 pub use sharex::*;
+pub use shguard::*;

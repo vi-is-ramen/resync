@@ -26,10 +26,10 @@
 //! } // Guard is dropped, lock is automatically released
 //! ```
 
-use crate::LockStatus;
+use super::ExGuard;
 use crate::traits::{LockPolicy, RetryPolicy};
+use crate::{LockError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
-use core::ops::{Deref, DerefMut};
 
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
 ///
@@ -41,7 +41,6 @@ use core::ops::{Deref, DerefMut};
 /// [`crate::retry::Yield`] as the retry policy (when the `std` feature is
 /// enabled).
 #[allow(missing_debug_implementations)]
-#[derive(Default)]
 pub struct Mutex<T, L = crate::lock::Os, R = crate::retry::Yield>
 where
     L: LockPolicy,
@@ -52,9 +51,26 @@ where
     retry: R,
 }
 
+impl<T, L, R> core::fmt::Debug for Mutex<T, L, R>
+where
+    T: core::fmt::Debug,
+    L: LockPolicy,
+    R: RetryPolicy,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    {
+        f.write_str("Mutex { ")?;
+        <T as core::fmt::Debug>::fmt(
+            unsafe { self.inner.get().as_ref_unchecked() },
+            f,
+        )?;
+        f.write_str(" }")?;
+        Ok(())
+    }
+}
+
 // SAFETY:
-// The mutex ensures exclusive access to `T` via the lock policy `L`. As long as
-// `T` is `Send`, the mutex itself can be safely shared across threads.
+// The mutex ensures exclusive access to `T`.
 unsafe impl<T, L, R> core::marker::Sync for Mutex<T, L, R>
 where
     L: LockPolicy,
@@ -63,59 +79,33 @@ where
 }
 
 // SAFETY:
-// The mutex can be safely moved between threads as long as `T` is `Send`.
-unsafe impl<T: core::marker::Send, L, R> core::marker::Send for Mutex<T, L, R>
+// The mutex can be safely moved between threads as long as `T`, `L` and `R` are
+// `Send`.
+unsafe impl<T, L, R> core::marker::Send for Mutex<T, L, R>
 where
+    T: core::marker::Send,
+    L: LockPolicy + core::marker::Send,
+    R: RetryPolicy + core::marker::Send,
+{
+}
+
+impl<T, L, R> core::default::Default for Mutex<T, L, R>
+where
+    T: Default,
     L: LockPolicy,
     R: RetryPolicy,
 {
-}
-
-/// A RAII guard that provides mutable access to the protected data.
-///
-/// When this guard is dropped, the underlying lock is automatically released
-/// via the [`LockPolicy::free`] method.
-#[allow(missing_debug_implementations)]
-pub struct MutexGuard<'a, T, L: LockPolicy>
-{
-    data: *mut T,
-    lock: &'a L,
-}
-
-impl<'a, T, L: LockPolicy> core::ops::Drop for MutexGuard<'a, T, L>
-{
-    fn drop(&mut self)
+    fn default() -> Self
     {
-        // SAFETY:
-        // The guard's existence guarantees that the lock is currently held by
-        // the current thread.
-        unsafe { self.lock.free() };
+        Self {
+            inner: UnsafeCell::new(T::default()),
+            lock:  L::default(),
+            retry: R::default(),
+        }
     }
 }
 
-impl<'a, T, L: LockPolicy> Deref for MutexGuard<'a, T, L>
-{
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target
-    {
-        // SAFETY:
-        // The guard guarantees exclusive access to the data.
-        unsafe { self.data.as_ref_unchecked() }
-    }
-}
-
-impl<'a, T, L: LockPolicy> DerefMut for MutexGuard<'a, T, L>
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        // SAFETY:
-        // The guard guarantees exclusive access to the data.
-        unsafe { self.data.as_mut_unchecked() }
-    }
-}
-
-impl<T, L: LockPolicy, S: RetryPolicy> Mutex<T, L, S>
+impl<T, L: LockPolicy, R: RetryPolicy> Mutex<T, L, R>
 {
     /// Creates a new mutex protecting the given `value`.
     ///
@@ -126,29 +116,35 @@ impl<T, L: LockPolicy, S: RetryPolicy> Mutex<T, L, S>
         Self {
             inner: UnsafeCell::new(value),
             lock:  L::default(),
-            retry: S::default(),
+            retry: R::default(),
         }
     }
 
     /// Attempts to acquire the mutex without blocking.
     ///
     /// This method calls [`LockPolicy::try_lock`] exactly once. If the lock
-    /// is currently held by another thread, or if an unrecoverable error
-    /// occurs, it returns `None`.
+    /// is currently held by another thread, it returns
+    /// `Err(TryLockError::Contention)`. If an unrecoverable lock error occurs,
+    /// it returns `Err(TryLockError::Lock(e))`.
     ///
     /// # Returns
     ///
-    /// - `Some(guard)`: The lock was successfully acquired.
-    /// - `None`: The lock is currently held, or an error occurred.
-    pub fn try_lock(&self) -> Option<MutexGuard<'_, T, L>>
+    /// - `Ok(guard)`: The lock was successfully acquired.
+    /// - `Err(TryLockError::Contention)`: The lock is currently held by another
+    ///   owner.
+    /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred in the
+    ///   lock policy.
+    pub fn try_lock(&self)
+    -> Result<ExGuard<'_, T, L>, TryLockError<L::Error>>
     {
         match unsafe { self.lock.try_lock(0) }
         {
-            Ok(LockStatus::Done) => Some(MutexGuard {
-                data: self.inner.get(),
-                lock: &self.lock,
-            }),
-            _ => None,
+            Ok(LockStatus::Done) =>
+            {
+                Ok(ExGuard::new(self.inner.get(), &self.lock))
+            },
+            Ok(LockStatus::Fail) => Err(TryLockError::Contention),
+            Err(e) => Err(TryLockError::Lock(e)),
         }
     }
 
@@ -160,10 +156,14 @@ impl<T, L: LockPolicy, S: RetryPolicy> Mutex<T, L, S>
     ///
     /// # Returns
     ///
-    /// - `Some(guard)`: The lock was successfully acquired.
-    /// - `None`: The retry policy aborted (e.g., due to a timeout or fatal
-    ///   error), or an unrecoverable error occurred in the lock policy.
-    pub fn lock(&self) -> Option<MutexGuard<'_, T, L>>
+    /// - `Ok(guard)`: The lock was successfully acquired.
+    /// - `Err(LockError::Lock(e))`: An unrecoverable error occurred in the lock
+    ///   policy.
+    /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
+    ///   loop (e.g., due to a timeout).
+    pub fn lock(
+        &self,
+    ) -> Result<ExGuard<'_, T, L>, LockError<L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -174,20 +174,97 @@ impl<T, L: LockPolicy, S: RetryPolicy> Mutex<T, L, S>
             {
                 Ok(LockStatus::Done) =>
                 {
-                    return Some(MutexGuard {
-                        data: self.inner.get(),
-                        lock: &self.lock,
-                    });
+                    return Ok(ExGuard::new(self.inner.get(), &self.lock));
                 },
                 Ok(LockStatus::Fail) =>
                 {
-                    if self.retry.retry(iterations).is_err()
+                    if let Err(e) = self.retry.retry(iterations)
                     {
-                        return None;
+                        return Err(LockError::Retry(e));
                     }
                 },
-                Err(_) => return None,
+                Err(e) => return Err(LockError::Lock(e)),
             }
         }
+    }
+
+    /// Exchanges the protected value with `new_value`, returning the old value.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(old_value)`: Exchange succeeded.
+    /// - `Err(LockError::Lock(e))`: Unrecoverable lock error.
+    /// - `Err(LockError::Retry(e))`: Retry policy aborted.
+    pub fn exchange(
+        &self,
+        new_value: T,
+    ) -> Result<T, LockError<L::Error, R::Error>>
+    {
+        let guard = self.lock()?;
+        Ok(guard.exchange(new_value))
+    }
+
+    /// Non‑blocking version of [`exchange`](Self::exchange).
+    ///
+    /// Attempts to acquire the lock without waiting. If successful, exchanges
+    /// the protected value with `new_value`, returns the old value, and
+    /// releases the lock.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(old_value)`: The lock was immediately available and the exchange
+    ///   succeeded.
+    /// - `Err(TryLockError::Contention)`: The lock is currently held by another
+    ///   thread.
+    /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred in the
+    ///   lock policy.
+    pub fn try_exchange(
+        &self,
+        new_value: T,
+    ) -> Result<T, TryLockError<L::Error>>
+    {
+        Ok(self.try_lock()?.exchange(new_value))
+    }
+}
+
+impl<T, L: LockPolicy, R: RetryPolicy> Mutex<T, L, R>
+where T: Default
+{
+    /// Takes the value out of the mutex, leaving a `Default::default()` value
+    /// in its place.
+    ///
+    /// This is equivalent to acquiring the lock and calling [`core::mem::take`]
+    /// on the protected data.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(value)`: The lock was successfully acquired and the value was
+    ///   taken.
+    /// - `Err(LockError::Lock(e))`: An unrecoverable error occurred in the lock
+    ///   policy.
+    /// - `Err(LockError::Retry(e))`: The retry policy aborted the acquisition
+    ///   loop.
+    pub fn take(&self) -> Result<T, LockError<L::Error, R::Error>>
+    {
+        Ok(self.lock()?.take())
+    }
+
+    /// Non‑blocking version of [`take`](Self::take).
+    ///
+    /// Attempts to acquire the lock without waiting. If successful, takes the
+    /// protected value, replaces it with `Default::default()`, and releases the
+    /// lock.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(value)`: The lock was immediately available and the value was
+    ///   taken.
+    /// - `Err(TryLockError::Contention)`: The lock is currently held by another
+    ///   thread.
+    /// - `Err(TryLockError::Lock(e))`: An unrecoverable error occurred in the
+    ///   lock policy.
+    pub fn try_take(&self) -> Result<T, TryLockError<L::Error>>
+    {
+        Ok(self.try_lock()?.take())
     }
 }

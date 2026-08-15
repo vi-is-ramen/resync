@@ -3,5 +3,4 @@
 - Add `Fs` implementation of `LockPolicy` (flock actually)
 - Write benches for everything
 - Write CI script to automatically generate GitHub Releases
-- Add `take` method for `Mutex` (and `Sharex` when it'll be done)
 - Own `lock_api` alternative (in `resync::api`, I guess)

@@ -34,10 +34,10 @@ use core::convert::Infallible;
 ///   lock (after a panic) or a resource becoming permanently unavailable.
 ///   Implementations that never fail can use [`Infallible`].
 ///
-/// # Required Super‑trait
+/// # Required Super‑traits
 ///
-/// `Self: Default` – The lock policy must be default‑constructible, typically
-/// representing an unlocked/initial state.
+/// `Self: Default + Sync` – The lock policy must be default‑constructible,
+/// typically representing an unlocked/initial state, and safely shared.
 ///
 /// # Adaptive Behaviour
 ///
@@ -120,7 +120,7 @@ use core::convert::Infallible;
 /// The [`LockResult`] type and the [`LockStatus`] enum used in method return
 /// values.
 pub unsafe trait LockPolicy
-where Self: Default
+where Self: Default + Sync
 {
     /// The error type for unrecoverable failures.
     ///
