@@ -124,25 +124,25 @@ unsafe impl<L1: LockPolicy, L2: LockPolicy> LockPolicy for Nested<L1, L2>
         }
     }
 
-    /// Checks the state of both inner locks without modifying them.
-    ///
-    /// Returns [`LockStatus::Fail`] if either lock is currently held.
-    fn get_state(&self) -> LockResult<Self::Error>
-    {
-        let l1 = self.l1.get_state();
+    // /// Checks the state of both inner locks without modifying them.
+    // ///
+    // /// Returns [`LockStatus::Fail`] if either lock is currently held.
+    // fn get_state(&self) -> LockResult<Self::Error>
+    // {
+    //     let l1 = self.l1.get_state();
 
-        if let Ok(LockStatus::Fail) = l1
-        {
-            return l1.map_err(NestedError::E1);
-        }
+    //     if let Ok(LockStatus::Fail) = l1
+    //     {
+    //         return l1.map_err(NestedError::E1);
+    //     }
 
-        if l1.is_err()
-        {
-            return l1.map_err(NestedError::E1);
-        }
+    //     if l1.is_err()
+    //     {
+    //         return l1.map_err(NestedError::E1);
+    //     }
 
-        self.l2.get_state().map_err(NestedError::E2)
-    }
+    //     self.l2.get_state().map_err(NestedError::E2)
+    // }
 
     /// Releases both inner locks in reverse order (`L2` then `L1`).
     ///

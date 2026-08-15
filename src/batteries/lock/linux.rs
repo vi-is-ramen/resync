@@ -191,18 +191,18 @@ unsafe impl LockPolicy for Os
         }
     }
 
-    /// Checks the current state of the lock without modifying it.
-    fn get_state(&self) -> LockResult
-    {
-        if self.0.load(Ordering::Relaxed) == 0
-        {
-            LockResult::Ok(LockStatus::Done)
-        }
-        else
-        {
-            LockResult::Ok(LockStatus::Fail)
-        }
-    }
+    // /// Checks the current state of the lock without modifying it.
+    // fn get_state(&self) -> LockResult
+    // {
+    //     if self.0.load(Ordering::Relaxed) == 0
+    //     {
+    //         LockResult::Ok(LockStatus::Done)
+    //     }
+    //     else
+    //     {
+    //         LockResult::Ok(LockStatus::Fail)
+    //     }
+    // }
 
     /// Releases the exclusive (writer) lock.
     ///

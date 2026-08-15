@@ -39,6 +39,8 @@ extern crate libc;
 mod batteries;
 pub mod traits;
 
+mod util;
+
 pub use batteries::primitives::*;
 pub use batteries::*;
 

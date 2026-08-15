@@ -101,17 +101,17 @@ use core::convert::Infallible;
 ///         self.0.store(false, Ordering::Release);
 ///     }
 ///
-///     fn get_state(&self) -> LockResult<Self::Error>
-///     {
-///         if self.0.load(Ordering::Relaxed)
-///         {
-///             Ok(LockStatus::Fail)
-///         }
-///         else
-///         {
-///             Ok(LockStatus::Done)
-///         }
-///     }
+///     # // fn get_state(&self) -> LockResult<Self::Error>
+///     # // {
+///         # // if self.0.load(Ordering::Relaxed)
+///         # // {
+///             # // Ok(LockStatus::Fail)
+///         # // }
+///         # // else
+///         # // {
+///             # // Ok(LockStatus::Done)
+///         # // }
+///     # // }
 /// }
 /// ```
 ///
@@ -175,27 +175,27 @@ where Self: Default + Sync
     /// atomicity.
     unsafe fn free(&self);
 
-    /// Check the lock state without modifying it.
-    ///
-    /// This method must never park the current thread or modify lock's state.
-    ///
-    /// > **[!NOTE]**: The result reflects a momentary snapshot and should not
-    /// > be used for critical decision-making without re-acquiring the lock.
-    ///
-    /// # Returns
-    ///
-    /// - [`LockStatus::Done`]: Lock is free;
-    /// - [`LockStatus::Fail`]: Lock is acquired.
-    ///
-    /// # Errors
-    ///
-    /// This method will return [`Self::Error`] error if the lock is corrupted.
-    /// Examples:
-    /// - thread holding the lock had panicked (poisonous lock);
-    /// - the resource is no longer available (if the lock relies on a network
-    ///   or filesystem);
-    /// - and so on.
-    fn get_state(&self) -> LockResult<Self::Error>;
+    // /// Check the lock state without modifying it.
+    // ///
+    // /// This method must never park the current thread or modify lock's
+    // state. ///
+    // /// > **[!NOTE]**: The result reflects a momentary snapshot and should
+    // not /// > be used for critical decision-making without re-acquiring
+    // the lock. ///
+    // /// # Returns
+    // ///
+    // /// - [`LockStatus::Done`]: Lock is free;
+    // /// - [`LockStatus::Fail`]: Lock is acquired.
+    // ///
+    // /// # Errors
+    // ///
+    // /// This method will return [`Self::Error`] error if the lock is
+    // corrupted. /// Examples:
+    // /// - thread holding the lock had panicked (poisonous lock);
+    // /// - the resource is no longer available (if the lock relies on a
+    // network ///   or filesystem);
+    // /// - and so on.
+    // fn get_state(&self) -> LockResult<Self::Error>;
 
     /// Wake all threads waiting on this lock.
     ///

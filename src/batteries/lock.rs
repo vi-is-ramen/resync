@@ -36,3 +36,9 @@ pub use macos::*;
     not(any(target_os = "linux", target_os = "windows", target_os = "macos",))
 ))]
 pub type Os = Atomic;
+
+#[cfg(all(feature = "std", unix))]
+mod fs;
+
+#[cfg(all(feature = "std", unix))]
+pub use fs::*;
