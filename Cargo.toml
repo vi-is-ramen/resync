@@ -1,6 +1,6 @@
 [package]
 name = "resync"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.98.0"
 workspace = "testing/util"
@@ -24,8 +24,8 @@ windows-sys = { version = "0.61", optional = true, features = [
 [build-dependencies]
 rustversion = "1"
 
-[dev-dependencies]
-criterion = "0.8"
+# [dev-dependencies]
+# criterion = "0.8"
 
 [features]
 default = [ "std" ]
