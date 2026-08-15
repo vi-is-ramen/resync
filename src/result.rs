@@ -1,3 +1,5 @@
+#![allow(type_alias_bounds)]
+
 //! Result types for lock and retry operations.
 //!
 //! This module defines the core result types used by the lock policies in this
@@ -91,7 +93,9 @@ pub enum LockStatus
 ///
 /// The error type `E` is determined by the lock implementation. For locks
 /// that never fail, use `core::convert::Infallible`.
-pub type LockResult<E = core::convert::Infallible> = Result<LockStatus, E>;
+pub type LockResult<E = core::convert::Infallible>
+where E: core::error::Error
+= Result<LockStatus, E>;
 
 /// Result type for retry operations.
 ///
@@ -99,13 +103,16 @@ pub type LockResult<E = core::convert::Infallible> = Result<LockStatus, E>;
 /// - `Err(E)`: retry aborted (timeout, error, etc.)
 ///
 /// The error type `E` is determined by the retry implementation.
-pub type RetryResult<E = core::convert::Infallible> = Result<(), E>;
+pub type RetryResult<E = core::convert::Infallible>
+where E: core::error::Error
+= Result<(), E>;
 
 /// Error returned by non‑blocking lock acquisition attempts (e.g., `try_lock`).
 ///
 /// This error distinguishes between transient contention and fatal lock errors.
 #[derive(Debug)]
 pub enum TryLockError<E>
+where E: core::error::Error
 {
     /// The lock is currently held by another owner (or writer).
     Contention,
@@ -117,6 +124,9 @@ pub enum TryLockError<E>
 /// the retry loop aborts or the lock policy fails.
 #[derive(Debug)]
 pub enum LockError<LE, RE>
+where
+    LE: core::error::Error,
+    RE: core::error::Error,
 {
     /// An unrecoverable error occurred in the underlying lock policy.
     Lock(LE),

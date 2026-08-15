@@ -30,8 +30,7 @@ use crate::RetryResult;
 ///
 /// # Required Super‑trait
 ///
-/// `Self: Default + Sync` – The lock policy must be default‑constructible,
-/// typically representing an unlocked/initial state, and safely shared.
+/// `Self: Sync` – The lock policy must be safely shared.
 ///
 /// # Adaptive Behaviour
 ///
@@ -171,12 +170,12 @@ use crate::RetryResult;
 ///   to [`LockResult`].
 /// - [`core::convert::Infallible`] – for error types that can never occur.
 pub trait RetryPolicy
-where Self: Default + Sync
+where Self: Sync
 {
     /// The error type for unrecoverable failures that abort the retry loop.
     ///
     /// Use [`Infallible`] for policies that never abort.
-    type Error;
+    type Error: core::error::Error;
 
     /// Perform one retry iteration.
     ///

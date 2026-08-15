@@ -109,7 +109,10 @@ where
 /// policy.
 ///
 /// The retry policy is initialized using its `Default` implementation.
-impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L)> for Mutex<T, L, R>
+impl<T, L, R> From<(T, L)> for Mutex<T, L, R>
+where
+    L: LockPolicy,
+    R: RetryPolicy + Default,
 {
     fn from(value: (T, L)) -> Self
     {
@@ -123,7 +126,10 @@ impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L)> for Mutex<T, L, R>
 
 /// Creates a new `Mutex` from a tuple of the protected value, a custom lock
 /// policy, and a custom retry policy.
-impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L, R)> for Mutex<T, L, R>
+impl<T, L, R> From<(T, L, R)> for Mutex<T, L, R>
+where
+    L: LockPolicy,
+    R: RetryPolicy,
 {
     fn from(value: (T, L, R)) -> Self
     {
@@ -135,7 +141,10 @@ impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L, R)> for Mutex<T, L, R>
     }
 }
 
-impl<T, L1: LockPolicy, R1: RetryPolicy> Mutex<T, L1, R1>
+impl<T, L1, R1> Mutex<T, L1, R1>
+where
+    L1: LockPolicy,
+    R1: RetryPolicy,
 {
     /// Converts this mutex into a new mutex with different lock and retry
     /// policies.
@@ -169,9 +178,10 @@ impl<T, L1: LockPolicy, R1: RetryPolicy> Mutex<T, L1, R1>
     /// let busy_mutex: Mutex<i32, Atomic, Busy> = unsafe { mutex.to() };
     /// assert_eq!(*busy_mutex.lock().unwrap(), 42);
     /// ```
-    pub unsafe fn to<L2: LockPolicy + Default, R2: RetryPolicy + Default>(
-        self,
-    ) -> Mutex<T, L2, R2>
+    pub unsafe fn to<L2, R2>(self) -> Mutex<T, L2, R2>
+    where
+        L2: LockPolicy + Default,
+        R2: RetryPolicy + Default,
     {
         Mutex::<T, L2, R2> {
             inner: self.inner,
@@ -181,7 +191,10 @@ impl<T, L1: LockPolicy, R1: RetryPolicy> Mutex<T, L1, R1>
     }
 }
 
-impl<T, L: LockPolicy + Default, R: RetryPolicy + Default> Mutex<T, L, R>
+impl<T, L, R> Mutex<T, L, R>
+where
+    L: LockPolicy + Default,
+    R: RetryPolicy + Default,
 {
     /// Creates a new mutex protecting the given `value`.
     ///
@@ -303,8 +316,11 @@ impl<T, L: LockPolicy + Default, R: RetryPolicy + Default> Mutex<T, L, R>
     }
 }
 
-impl<T, L: LockPolicy + Default, R: RetryPolicy + Default> Mutex<T, L, R>
-where T: Default
+impl<T, L, R> Mutex<T, L, R>
+where
+    T: Default,
+    L: LockPolicy + Default,
+    R: RetryPolicy + Default,
 {
     /// Takes the value out of the mutex, leaving a `Default::default()` value
     /// in its place.

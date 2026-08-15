@@ -34,7 +34,10 @@ use crate::{LockResult, LockStatus};
 /// deadlocks. The first lock (`L1`) is always acquired before the second
 /// lock (`L2`), and they are released in reverse order.
 #[allow(missing_debug_implementations)]
-pub struct Nested<L1: LockPolicy, L2: LockPolicy>
+pub struct Nested<L1, L2>
+where
+    L1: LockPolicy,
+    L2: LockPolicy,
 {
     l1: L1,
     l2: L2,
@@ -87,7 +90,10 @@ where
     }
 }
 
-impl<L1: LockPolicy + Default, L2: LockPolicy + Default> Nested<L1, L2>
+impl<L1, L2> Nested<L1, L2>
+where
+    L1: LockPolicy + Default,
+    L2: LockPolicy + Default,
 {
     /// Creates a new [`Nested`] lock with default-constructed inner locks.
     pub fn new() -> Self
@@ -99,8 +105,10 @@ impl<L1: LockPolicy + Default, L2: LockPolicy + Default> Nested<L1, L2>
     }
 }
 
-impl<L1: LockPolicy + Default, L2: LockPolicy + Default> core::default::Default
-    for Nested<L1, L2>
+impl<L1, L2> core::default::Default for Nested<L1, L2>
+where
+    L1: LockPolicy + Default,
+    L2: LockPolicy + Default,
 {
     fn default() -> Self
     {
@@ -108,7 +116,10 @@ impl<L1: LockPolicy + Default, L2: LockPolicy + Default> core::default::Default
     }
 }
 
-unsafe impl<L1: LockPolicy, L2: LockPolicy> LockPolicy for Nested<L1, L2>
+unsafe impl<L1, L2> LockPolicy for Nested<L1, L2>
+where
+    L1: LockPolicy,
+    L2: LockPolicy,
 {
     type Error =
         NestedError<<L1 as LockPolicy>::Error, <L2 as LockPolicy>::Error>;

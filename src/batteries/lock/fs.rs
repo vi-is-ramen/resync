@@ -61,7 +61,7 @@ impl Fs
     }
 
     /// Default path used by `Default` implementation.
-    const PATH_PREFIX: &'static str = "/tmp/resync-fs-lock";
+    const PATH_PREFIX: &'static str = "/tmp/resync-flock";
 }
 
 impl Default for Fs
@@ -69,7 +69,7 @@ impl Default for Fs
     fn default() -> Self
     {
         Self::new(Self::PATH_PREFIX.to_string() + &crate::util::random_hex_16())
-            .expect("failed to open default fs lock file")
+            .expect("failed to open default lock file")
     }
 }
 
