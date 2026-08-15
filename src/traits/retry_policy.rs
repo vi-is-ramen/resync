@@ -70,7 +70,8 @@ use crate::RetryResult;
 /// ```rust
 /// # use core::convert::Infallible;
 /// # use core::hint::spin_loop;
-/// #
+/// # use resync::traits::RetryPolicy;
+/// # use resync::RetryResult;
 /// #[derive(Default)]
 /// struct SpinPolicy;
 ///
@@ -92,7 +93,8 @@ use crate::RetryResult;
 /// # use core::convert::Infallible;
 /// # use core::hint::spin_loop;
 /// # use std::thread::yield_now;
-/// #
+/// # use resync::traits::RetryPolicy;
+/// # use resync::RetryResult;
 /// #[derive(Default)]
 /// struct AdaptivePolicy;
 ///
@@ -119,6 +121,8 @@ use crate::RetryResult;
 ///
 /// ```rust
 /// # use core::convert::Infallible;
+/// # use resync::traits::RetryPolicy;
+/// # use resync::RetryResult;
 /// # use std::time::{Duration, Instant};
 /// #
 /// struct TimeoutPolicy
@@ -209,7 +213,9 @@ where Self: Default
     /// # Example
     ///
     /// ```
+    /// # use resync::traits::RetryPolicy;
     /// # use core::hint::spin_loop;
+    /// # use resync::RetryResult;
     /// # use core::convert::Infallible;
     /// # struct MyPolicy;
     /// # impl Default for MyPolicy { fn default() -> Self { MyPolicy } }

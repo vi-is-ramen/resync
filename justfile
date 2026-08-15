@@ -8,6 +8,7 @@ check:
 test:
     @cargo test --all-features --all-targets
     @cargo test --no-default-features --all-targets
+    @cargo test --doc
     @python scripts/test.py
 
 clean:

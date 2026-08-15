@@ -1,4 +1,5 @@
-use crate::LockResult;
+use crate::traits::{LockPolicy, SharingPolicy};
+use crate::{LockResult, LockStatus};
 
 #[allow(missing_debug_implementations)]
 pub struct Os

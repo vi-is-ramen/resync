@@ -93,7 +93,10 @@ use core::convert::Infallible;
 /// ```rust
 /// # use core::convert::Infallible;
 /// # use core::sync::atomic::{AtomicUsize, Ordering};
-/// #
+/// # use resync::traits::LockPolicy;
+/// # use resync::LockResult;
+/// # use resync::LockStatus;
+/// # use resync::traits::SharingPolicy;
 /// #[repr(transparent)]
 /// struct RwSpinPolicy(AtomicUsize);
 ///

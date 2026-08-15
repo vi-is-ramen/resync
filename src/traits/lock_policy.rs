@@ -59,6 +59,9 @@ use core::convert::Infallible;
 ///
 /// ```rust
 /// # use core::convert::Infallible;
+/// # use resync::traits::LockPolicy;
+/// # use resync::LockResult;
+/// # use resync::LockStatus;
 /// # use core::sync::atomic::{AtomicBool, Ordering};
 ///
 /// #[repr(transparent)]

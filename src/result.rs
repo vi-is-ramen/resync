@@ -42,8 +42,8 @@
 //! A typical lock acquisition loop using these result types:
 //!
 //! ```no_run
-//! # use lock_policies::{LockResult, LockStatus};
-//! # fn try_lock() -> LockResult { Ok(LockStatus::Done) }
+//! # use resync::{LockResult, LockStatus};
+//! # fn try_lock() -> LockResult<std::io::Error> { Ok(LockStatus::Done) }
 //! # fn retry() -> Result<(), std::io::Error> { Ok(()) }
 //! # let mut iteration = 0;
 //! loop

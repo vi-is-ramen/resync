@@ -1,4 +1,5 @@
-use crate::{ILock, IShare, LockResult};
+use crate::traits::{LockPolicy, SharingPolicy};
+use crate::{ILock, IShare, LockResult, LockStatus};
 
 #[allow(missing_debug_implementations)]
 #[repr(transparent)]
@@ -30,7 +31,7 @@ impl core::default::Default for Os
 unsafe impl Send for Os {}
 unsafe impl Sync for Os {}
 
-unsafe impl ILock for Os
+unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
 
@@ -75,7 +76,7 @@ unsafe impl ILock for Os
     }
 }
 
-impl IShare for Os
+impl SharingPolicy for Os
 {
     fn try_share(&self, _current_iteration: usize) -> LockResult
     {
