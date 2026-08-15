@@ -3,3 +3,4 @@
 - Add `Gate`
 - Add `Fs` implementation of `LockPolicy` (flock actually)
 - Write benches for everything
+- Write CI script to automatically generate GitHub Releases
