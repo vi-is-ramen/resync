@@ -46,6 +46,9 @@ pub struct Nested<L1: LockPolicy, L2: LockPolicy>
 /// from either the first lock (`Le1`) or the second lock (`Le2`).
 #[derive(Debug)]
 pub enum NestedError<E1, E2>
+where
+    E1: core::error::Error,
+    E2: core::error::Error,
 {
     /// An error occurred in the first inner lock (`L1`).
     E1(E1),
@@ -54,7 +57,37 @@ pub enum NestedError<E1, E2>
     E2(E2),
 }
 
-impl<L1: LockPolicy, L2: LockPolicy> Nested<L1, L2>
+impl<E1, E2> core::fmt::Display for NestedError<E1, E2>
+where
+    E1: core::error::Error + core::fmt::Display,
+    E2: core::error::Error + core::fmt::Display,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    {
+        match self
+        {
+            Self::E1(e) => <E1 as core::fmt::Display>::fmt(e, f),
+            Self::E2(e) => <E2 as core::fmt::Display>::fmt(e, f),
+        }
+    }
+}
+
+impl<E1, E2> core::error::Error for NestedError<E1, E2>
+where
+    E1: core::error::Error,
+    E2: core::error::Error,
+{
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)>
+    {
+        match self
+        {
+            Self::E1(e) => e.source(),
+            Self::E2(e) => e.source(),
+        }
+    }
+}
+
+impl<L1: LockPolicy + Default, L2: LockPolicy + Default> Nested<L1, L2>
 {
     /// Creates a new [`Nested`] lock with default-constructed inner locks.
     pub fn new() -> Self
@@ -66,7 +99,8 @@ impl<L1: LockPolicy, L2: LockPolicy> Nested<L1, L2>
     }
 }
 
-impl<L1: LockPolicy, L2: LockPolicy> core::default::Default for Nested<L1, L2>
+impl<L1: LockPolicy + Default, L2: LockPolicy + Default> core::default::Default
+    for Nested<L1, L2>
 {
     fn default() -> Self
     {

@@ -8,5 +8,7 @@
 mod busy;
 mod r#yield;
 
+#[cfg(feature = "fake")]
+pub use super::lock::{Fake, FakeError};
 pub use busy::*;
 pub use r#yield::*;

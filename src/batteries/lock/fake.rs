@@ -1,0 +1,91 @@
+//! A fake lock and retry policy implementation for testing purposes.
+//!
+//! This module provides [`Fake`], a mock implementation of [`LockPolicy`],
+//! [`SharingPolicy`], and [`RetryPolicy`]. It always succeeds in acquiring
+//! the lock and never blocks or yields, making it useful for unit testing
+//! higher-level primitives without dealing with actual concurrency or
+//! contention.
+
+use crate::RetryResult;
+use crate::traits::{LockPolicy, RetryPolicy, SharingPolicy};
+
+/// A fake lock and retry policy that always succeeds.
+///
+/// This is primarily intended for testing scenarios where you need a lock
+/// policy that guarantees immediate, uncontended acquisition without any
+/// actual synchronization overhead.
+#[derive(Debug, Default)]
+pub struct Fake;
+
+/// An error type for the [`Fake`] policy.
+///
+/// Since [`Fake`] never actually fails, this error type is theoretically
+/// unreachable in normal operation. It exists solely to satisfy the
+/// associated `Error` type requirements of the policy traits.
+#[derive(Debug, Default)]
+pub struct FakeError;
+
+impl core::fmt::Display for FakeError
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    {
+        f.write_str("FakeErr")
+    }
+}
+
+impl core::error::Error for FakeError {}
+
+unsafe impl core::marker::Sync for Fake {}
+
+unsafe impl LockPolicy for Fake
+{
+    type Error = FakeError;
+
+    /// Always succeeds in acquiring the exclusive lock.
+    unsafe fn try_lock(
+        &self,
+        _current_iteration: usize,
+    ) -> crate::LockResult<Self::Error>
+    {
+        Ok(crate::LockStatus::Done)
+    }
+
+    /// No-op release operation.
+    unsafe fn free(&self) {}
+
+    /// No-op wake operation.
+    fn wake_all(&self) {}
+}
+
+unsafe impl SharingPolicy for Fake
+{
+    /// Always succeeds in acquiring the shared lock.
+    fn try_share(
+        &self,
+        _current_iteration: usize,
+    ) -> crate::LockResult<Self::Error>
+    {
+        Ok(crate::LockStatus::Done)
+    }
+
+    /// No-op release operation.
+    fn free_share(&self) {}
+
+    /// No-op wake operation.
+    fn wake_readers(&self) {}
+}
+
+impl RetryPolicy for Fake
+{
+    type Error = FakeError;
+
+    /// Always succeeds and continues the retry loop (though it will never
+    /// actually be called since `try_lock` and `try_share` always succeed).
+    fn retry(
+        &self,
+        _current_iteration: usize,
+    ) -> crate::RetryResult<Self::Error>
+    {
+        RetryResult::Ok(())
+    }
+}

@@ -77,8 +77,8 @@ where
 impl<T: core::default::Default, L, R> core::default::Default for Sharex<T, L, R>
 where
     T: Default,
-    L: SharingPolicy,
-    R: RetryPolicy,
+    L: SharingPolicy + Default,
+    R: RetryPolicy + Default,
 {
     fn default() -> Self
     {
@@ -90,7 +90,7 @@ where
     }
 }
 
-impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
+impl<T, L: SharingPolicy + Default, R: RetryPolicy + Default> Sharex<T, L, R>
 {
     /// Creates a new `Sharex` lock protecting the given `value`.
     ///
@@ -280,7 +280,7 @@ impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
     }
 }
 
-impl<T, L: SharingPolicy, R: RetryPolicy> Sharex<T, L, R>
+impl<T, L: SharingPolicy + Default, R: RetryPolicy + Default> Sharex<T, L, R>
 where T: Default
 {
     /// Takes the value out of the mutex, leaving a `Default::default()` value

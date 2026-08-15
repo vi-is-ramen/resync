@@ -1,3 +1,9 @@
+//! A shared RAII guard that provides shared (read) access to the protected
+//! data.
+//!
+//! When this guard is dropped, the shared lock is automatically released
+//! via the [`SharingPolicy::free_share`] method.
+
 use core::ops::Deref;
 
 use crate::traits::SharingPolicy;
@@ -18,7 +24,15 @@ where L: SharingPolicy
 impl<'a, T, L> ShGuard<'a, T, L>
 where L: SharingPolicy
 {
-    /// TODO: finish docs
+    /// Creates a new shared guard.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that:
+    /// - `data` points to valid, initialized data protected by the lock.
+    /// - The shared (reader) lock has been successfully acquired on `lock`.
+    /// - No mutable references to the protected data exist while this guard is
+    ///   alive.
     pub fn new(data: *const T, lock: &'a L) -> Self
     {
         Self { data, lock }

@@ -6,10 +6,16 @@
 //! implementations depend on the target operating system and enabled features.
 
 mod atomic;
+#[cfg(feature = "fake")]
+mod fake;
 mod nested;
+mod shield;
 
 pub use atomic::*;
+#[cfg(feature = "fake")]
+pub use fake::*;
 pub use nested::*;
+pub use shield::*;
 
 #[cfg(all(feature = "std", target_os = "linux"))]
 mod linux;

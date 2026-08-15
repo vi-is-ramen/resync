@@ -25,20 +25,17 @@
 //!   `#![no_std]` compatible. The default retry strategy falls back to
 //!   [`retry::Busy`], which issues `core::hint::spin_loop()`, and the lock
 //!   backend falls back to [`lock::Atomic`].
-
-// TODO: decide what to do with outdated guidebook
-// # Guidebook
-//
-// For a comprehensive guide on the library's philosophy, design decisions,
-// and advanced usage patterns, see the [`guide`] module.
-
+//!
+//! # Guidebook
+//!
+//! For a comprehensive guide on the library's philosophy, design decisions,
+//! and advanced usage patterns, see the [`guide`] module.
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]
 extern crate libc;
 
 mod batteries;
 pub mod traits;
-
 mod util;
 
 pub use batteries::primitives::*;
@@ -47,11 +44,11 @@ pub use batteries::*;
 mod result;
 pub use result::*;
 
-// /// The comprehensive guidebook for the `resync` crate.
-// ///
-// /// This module contains the full text of the Resync Guidebook, covering
-// /// the library's philosophy, core concepts, advanced usage patterns, design
-// /// decisions, and inherent limitations.
-// #[doc = include_str!("../markdown/book.md")]
-// pub mod guide
-// {}
+/// The comprehensive guidebook for the `resync` crate.
+///
+/// This module contains the full text of the Resync Guidebook, covering
+/// the library's philosophy, core concepts, advanced usage patterns, design
+/// decisions, and inherent limitations.
+#[doc = include_str!("../markdown/book.md")]
+pub mod guide
+{}

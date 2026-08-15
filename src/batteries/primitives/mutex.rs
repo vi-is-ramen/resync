@@ -92,8 +92,8 @@ where
 impl<T, L, R> core::default::Default for Mutex<T, L, R>
 where
     T: Default,
-    L: LockPolicy,
-    R: RetryPolicy,
+    L: LockPolicy + Default,
+    R: RetryPolicy + Default,
 {
     fn default() -> Self
     {
@@ -105,7 +105,83 @@ where
     }
 }
 
-impl<T, L: LockPolicy, R: RetryPolicy> Mutex<T, L, R>
+/// Creates a new `Mutex` from a tuple of the protected value and a custom lock
+/// policy.
+///
+/// The retry policy is initialized using its `Default` implementation.
+impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L)> for Mutex<T, L, R>
+{
+    fn from(value: (T, L)) -> Self
+    {
+        Self {
+            inner: UnsafeCell::new(value.0),
+            lock:  value.1,
+            retry: R::default(),
+        }
+    }
+}
+
+/// Creates a new `Mutex` from a tuple of the protected value, a custom lock
+/// policy, and a custom retry policy.
+impl<T, L: LockPolicy, R: RetryPolicy> From<(T, L, R)> for Mutex<T, L, R>
+{
+    fn from(value: (T, L, R)) -> Self
+    {
+        Self {
+            inner: UnsafeCell::new(value.0),
+            lock:  value.1,
+            retry: value.2,
+        }
+    }
+}
+
+impl<T, L1: LockPolicy, R1: RetryPolicy> Mutex<T, L1, R1>
+{
+    /// Converts this mutex into a new mutex with different lock and retry
+    /// policies.
+    ///
+    /// This method consumes the current mutex, transfers the protected data
+    /// `T`, and returns a new `Mutex` parameterized by the new lock policy
+    /// `L2` and retry policy `R2`.
+    ///
+    /// # Safety
+    ///
+    /// This operation **does not preserve the lock state**. The new lock and
+    /// retry policies are initialized using their `Default` implementations
+    /// (i.e., unlocked). Any threads currently waiting on the old lock policy
+    /// (`L1`) will **not** be woken up and may deadlock or wait indefinitely,
+    /// as the new lock policy (`L2`) has no knowledge of them.
+    ///
+    /// This method is primarily useful for changing synchronization strategies
+    /// at known safe points (e.g., during initialization or when you can
+    /// guarantee no other threads are contending for the lock).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use resync::Mutex;
+    /// # use resync::lock::Atomic;
+    /// # use resync::retry::Busy;
+    /// // Start with default Os/Yield policies (requires `std` feature)
+    /// let mutex = Mutex::<i32>::new(42);
+    ///
+    /// // Convert to Atomic/Busy policies
+    /// let busy_mutex: Mutex<i32, Atomic, Busy> = unsafe { mutex.to() };
+    /// assert_eq!(*busy_mutex.lock().unwrap(), 42);
+    /// ```
+    pub unsafe fn to<L2: LockPolicy + Default, R2: RetryPolicy + Default>(
+        self,
+    ) -> Mutex<T, L2, R2>
+    {
+        Mutex::<T, L2, R2> {
+            inner: self.inner,
+            lock:  L2::default(),
+            retry: R2::default(),
+        }
+    }
+}
+
+impl<T, L: LockPolicy + Default, R: RetryPolicy + Default> Mutex<T, L, R>
 {
     /// Creates a new mutex protecting the given `value`.
     ///
@@ -227,7 +303,7 @@ impl<T, L: LockPolicy, R: RetryPolicy> Mutex<T, L, R>
     }
 }
 
-impl<T, L: LockPolicy, R: RetryPolicy> Mutex<T, L, R>
+impl<T, L: LockPolicy + Default, R: RetryPolicy + Default> Mutex<T, L, R>
 where T: Default
 {
     /// Takes the value out of the mutex, leaving a `Default::default()` value

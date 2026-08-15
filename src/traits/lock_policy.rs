@@ -36,8 +36,7 @@ use core::convert::Infallible;
 ///
 /// # Required Super‑traits
 ///
-/// `Self: Default + Sync` – The lock policy must be default‑constructible,
-/// typically representing an unlocked/initial state, and safely shared.
+/// `Self: Sync` – The lock policy must be safely shared.
 ///
 /// # Adaptive Behaviour
 ///
@@ -108,12 +107,12 @@ use core::convert::Infallible;
 /// The [`LockResult`] type and the [`LockStatus`] enum used in method return
 /// values.
 pub unsafe trait LockPolicy
-where Self: Default + Sync
+where Self: Sync
 {
     /// The error type for unrecoverable failures.
     ///
     /// Use [`Infallible`] for locks that never fail.
-    type Error: core::fmt::Debug;
+    type Error: core::error::Error;
 
     /// Attempt to acquire the lock.
     ///
