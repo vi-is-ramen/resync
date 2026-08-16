@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! A synchronization primitive that blocks a set of threads until all of them
 //! have reached a certain point.
 //!
@@ -98,7 +100,9 @@ where R: RetryPolicy
 // SAFETY:
 // The barrier uses atomic operations for all state transitions, making it safe
 // to share across threads.
+#[allow(unsafe_code)]
 unsafe impl<R> Sync for Barrier<R> where R: RetryPolicy + Sync {}
+#[allow(unsafe_code)]
 unsafe impl<R> Send for Barrier<R> where R: RetryPolicy + Send {}
 
 impl<R> Barrier<R>

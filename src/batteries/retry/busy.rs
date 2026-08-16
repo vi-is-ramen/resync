@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! A busy-wait retry strategy that uses CPU pause instructions.
 //!
 //! This module provides the [`Busy`] retry policy, which is ideal for

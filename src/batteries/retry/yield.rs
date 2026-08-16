@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! A cooperative retry strategy that yields the current thread to the OS
 //! scheduler.
 //!
