@@ -138,6 +138,11 @@ use core::convert::Infallible;
 ///         // Release writer lock: store 0.
 ///         self.0.store(0, Ordering::Release);
 ///     }
+///
+///     fn new_locked() -> ((), Self)
+///     {
+///         ((), Self(AtomicUsize::new(usize::MAX)))
+///     }
 /// }
 ///
 /// unsafe impl SharingPolicy for RwSpinPolicy

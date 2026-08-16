@@ -158,6 +158,19 @@ where L: LockPolicy
     {
         self.inner.wake_all()
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let (meta, l) = L::new_locked();
+
+        (
+            meta,
+            Self {
+                inner:   l,
+                pending: AtomicUsize::new(0),
+            },
+        )
+    }
 }
 
 unsafe impl<L> SharingPolicy for Shield<L>

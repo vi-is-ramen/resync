@@ -120,8 +120,8 @@ where
 
 unsafe impl<L1, L2> LockPolicy for Nested<L1, L2>
 where
-    L1: LockPolicy,
-    L2: LockPolicy,
+    L1: LockPolicy + Default,
+    L2: LockPolicy + Default,
 {
     type Error =
         NestedError<<L1 as LockPolicy>::Error, <L2 as LockPolicy>::Error>;
@@ -189,5 +189,19 @@ where
     {
         self.l1.wake_all();
         self.l2.wake_all();
+    }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let rv = Self::default();
+
+        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
+        {
+            (meta, rv)
+        }
+        else
+        {
+            unreachable!()
+        }
     }
 }

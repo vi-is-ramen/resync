@@ -114,6 +114,11 @@ unsafe impl LockPolicy for Atomic
     {
         self.0.store(0, Ordering::Release);
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        ((), Self(AtomicUsize::new(WRITER)))
+    }
 }
 
 unsafe impl SharingPolicy for Atomic

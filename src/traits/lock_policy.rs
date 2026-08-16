@@ -5,10 +5,11 @@ use core::convert::Infallible;
 /// A lock policy that defines how to acquire, release, and inspect a lock.
 ///
 /// This trait abstracts the behavior of a synchronization primitive (e.g., a
-/// mutex, spinlock, futex, or distributed lock) in terms of three core
-/// operations: non‑blocking acquisition, release, and state inspection. It is
-/// designed to be used as the policy parameter of a generic lock type, allowing
-/// the same lock interface to be backed by different implementations.
+/// mutex, spinlock, futex, or distributed lock) in terms of core
+/// operations: non‑blocking acquisition, release, state inspection, and
+/// initialization. It is designed to be used as the policy parameter of a
+/// generic lock type, allowing the same lock interface to be backed by
+/// different implementations.
 ///
 /// # Safety
 ///
@@ -22,8 +23,9 @@ use core::convert::Infallible;
 /// - [`free`](#tymethod.free) must only be called when the current thread
 ///   actually holds the lock; failure to uphold this invariant may release a
 ///   lock not owned by the caller.
-/// - [`get_state`](#tymethod.get_state) must not modify the lock state and must
-///   be safe to call concurrently from any thread.
+/// - [`new_locked`](#tymethod.new_locked) must return a lock instance that is
+///   already in the acquired state, such that any concurrent `try_lock` call
+///   will correctly observe contention.
 /// - [`wake_all`](#tymethod.wake_all), if overridden, must ensure that all
 ///   waiters are woken correctly without race conditions.
 ///
@@ -32,6 +34,8 @@ use core::convert::Infallible;
 /// * `Error` – The error type for unrecoverable failures, such as a poisoned
 ///   lock (after a panic) or a resource becoming permanently unavailable.
 ///   Implementations that never fail can use [`Infallible`].
+/// * `Meta` – Metadata returned upon successful acquisition that must be passed
+///   back to [`free`](#tymethod.free) to release the lock.
 ///
 /// # Required Super‑traits
 ///
@@ -101,6 +105,11 @@ use core::convert::Infallible;
 ///     {
 ///         self.0.store(false, Ordering::Release);
 ///     }
+///
+///     fn new_locked() -> (Self::Meta, Self)
+///     {
+///         ((), SpinPolicy(AtomicBool::new(true)))
+///     }
 /// }
 /// ```
 ///
@@ -116,7 +125,16 @@ where Self: Sync
     /// Use [`Infallible`] for locks that never fail.
     type Error: core::error::Error;
 
-    /// TODO: documentation
+    /// Metadata associated with a successful lock acquisition.
+    ///
+    /// This type is returned by [`try_lock`](#tymethod.try_lock) upon
+    /// successful acquisition ([`LockStatus::Done`]) and must be passed
+    /// back to the [`free`](#tymethod.free) method to release the lock.
+    ///
+    /// For simple locks (like basic spinlocks), this can be the unit type `()`.
+    /// For more complex locks (like ticket locks, OS futexes, or locks that
+    /// track the owner thread), this type carries the necessary state to
+    /// correctly identify and release the specific lock instance.
     type Meta;
 
     /// Attempt to acquire the lock.
@@ -137,7 +155,7 @@ where Self: Sync
     /// This method will return [`Self::Error`] error if the lock is corrupted.
     /// Examples:
     /// - thread holding the lock had panicked (poisonous lock);
-    /// - resource is not available more (if if the lock relies on a network or
+    /// - resource is no longer available (if the lock relies on a network or
     ///   filesystem);
     /// - and so on.
     ///
@@ -173,4 +191,26 @@ where Self: Sync
     /// implementations should override this to broadcast a wake to all
     /// waiters.
     fn wake_all(&self) {}
+
+    /// Creates a new instance of the lock policy in the **locked** (acquired)
+    /// state.
+    ///
+    /// This method is useful for initializing synchronization primitives that
+    /// must start in a closed or locked state (e.g., a [`Gate`](crate::Gate)
+    /// that blocks incoming threads until explicitly opened, or a barrier).
+    ///
+    /// It returns a tuple containing:
+    /// 1. The [`Meta`](#associatedtype.Meta) data required to eventually
+    ///    release the lock via [`free`](#tymethod.free).
+    /// 2. The initialized lock policy instance itself.
+    ///
+    /// # Correctness
+    ///
+    /// The returned lock must be fully acquired such that any subsequent call
+    /// to [`try_lock`](#tymethod.try_lock) by another thread will result in
+    /// [`LockStatus::Fail`] (or block/park, depending on the adaptive
+    /// strategy). The caller is responsible for eventually calling
+    /// [`free`](#tymethod.free) with the returned metadata to release the
+    /// lock.
+    fn new_locked() -> (Self::Meta, Self);
 }

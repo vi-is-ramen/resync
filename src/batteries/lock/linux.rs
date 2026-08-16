@@ -217,6 +217,11 @@ unsafe impl LockPolicy for Os
             futex_wake(&self.0, i32::MAX);
         }
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        ((), Self(AtomicU32::new(WRITER)))
+    }
 }
 
 unsafe impl SharingPolicy for Os

@@ -108,6 +108,20 @@ unsafe impl LockPolicy for Os
     ///
     /// This is a no-op because `SRWLOCK` handles thread waking automatically.
     fn wake_all(&self) {}
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let rv = Self::default();
+
+        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
+        {
+            (meta, rv)
+        }
+        else
+        {
+            unreachable!()
+        }
+    }
 }
 
 unsafe impl SharingPolicy for Os

@@ -124,4 +124,9 @@ unsafe impl LockPolicy for Fs
     {
         let _ = unsafe { libc::flock(self.fd, libc::LOCK_UN) };
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        todo!()
+    }
 }

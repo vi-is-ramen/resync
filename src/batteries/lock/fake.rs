@@ -57,6 +57,11 @@ unsafe impl LockPolicy for Fake
 
     /// No-op wake operation.
     fn wake_all(&self) {}
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        ((), Self)
+    }
 }
 
 unsafe impl SharingPolicy for Fake

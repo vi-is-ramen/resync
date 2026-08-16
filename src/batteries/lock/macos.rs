@@ -133,6 +133,20 @@ unsafe impl LockPolicy for Os
     /// This is a no-op because `pthread_rwlock_t` handles thread waking
     /// automatically upon release.
     fn wake_all(&self) {}
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let rv = Self::default();
+
+        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
+        {
+            (meta, rv)
+        }
+        else
+        {
+            unreachable!()
+        }
+    }
 }
 
 unsafe impl SharingPolicy for Os

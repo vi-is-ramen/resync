@@ -265,6 +265,20 @@ unsafe impl LockPolicy for Irq
             enable_irq();
         }
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let rv = Self;
+
+        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
+        {
+            (meta, rv)
+        }
+        else
+        {
+            unreachable!()
+        }
+    }
 }
 
 /// A composite lock policy that wraps a [`SharingPolicy`] and disables
@@ -279,10 +293,10 @@ unsafe impl LockPolicy for Irq
 /// access, you must ensure that readers also disable IRQs to prevent deadlocks.
 #[derive(Debug, Default)]
 pub struct SharexIrq<L>(pub L)
-where L: SharingPolicy;
+where L: SharingPolicy + Default;
 
 unsafe impl<L> LockPolicy for SharexIrq<L>
-where L: SharingPolicy
+where L: SharingPolicy + Default
 {
     type Error = L::Error;
     type Meta = (bool, L::Meta);
@@ -302,9 +316,6 @@ where L: SharingPolicy
             },
             Ok(LockStatus::Fail) =>
             {
-                // FIX: We must restore IRQ state if acquisition fails,
-                // otherwise we leave the CPU with interrupts permanently
-                // disabled!
                 if irq_was_enabled
                 {
                     enable_irq();
@@ -333,10 +344,24 @@ where L: SharingPolicy
             enable_irq();
         }
     }
+
+    fn new_locked() -> (Self::Meta, Self)
+    {
+        let rv = Self::default();
+
+        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
+        {
+            (meta, rv)
+        }
+        else
+        {
+            unreachable!()
+        }
+    }
 }
 
 unsafe impl<L> SharingPolicy for SharexIrq<L>
-where L: SharingPolicy
+where L: SharingPolicy + Default
 {
     fn try_share(
         &self,
