@@ -7,9 +7,15 @@ use core::cell::UnsafeCell;
 #[cfg(feature = "std")]
 use core::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(feature = "__lint")]
+use crate::lock::Atomic as DefaultLock;
+
+#[cfg(not(feature = "__lint"))]
+use crate::lock::Os as DefaultLock;
+
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
 #[allow(missing_debug_implementations)]
-pub struct Mutex<T, L = crate::lock::Os, R = crate::retry::Yield>
+pub struct Mutex<T, L = DefaultLock, R = crate::retry::Yield>
 where
     L: LockPolicy,
     R: RetryPolicy,
@@ -66,67 +72,6 @@ where
             inner:                            UnsafeCell::new(T::default()),
             lock:                             L::default(),
             retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
-        }
-    }
-}
-
-impl<T, L, R> From<(T, L)> for Mutex<T, L, R>
-where
-    L: LockPolicy,
-    R: RetryPolicy + Default,
-{
-    fn from(value: (T, L)) -> Self
-    {
-        Self {
-            inner:                            UnsafeCell::new(value.0),
-            lock:                             value.1,
-            retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
-        }
-    }
-}
-
-impl<T, L, R> From<(T, L, R)> for Mutex<T, L, R>
-where
-    L: LockPolicy,
-    R: RetryPolicy,
-{
-    fn from(value: (T, L, R)) -> Self
-    {
-        Self {
-            inner:                            UnsafeCell::new(value.0),
-            lock:                             value.1,
-            retry:                            value.2,
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
-        }
-    }
-}
-
-impl<T, L1, R1> Mutex<T, L1, R1>
-where
-    L1: LockPolicy,
-    R1: RetryPolicy,
-{
-    /// Converts this mutex into a new mutex with different lock and retry
-    /// policies.
-    ///
-    /// # Safety
-    ///
-    /// This operation **does not preserve the lock state** or the poisoning
-    /// state.
-    pub unsafe fn to<L2, R2>(self) -> Mutex<T, L2, R2>
-    where
-        L2: LockPolicy + Default,
-        R2: RetryPolicy + Default,
-    {
-        Mutex::<T, L2, R2> {
-            inner:                            self.inner,
-            lock:                             L2::default(),
-            retry:                            R2::default(),
             #[cfg(feature = "std")]
             poisoned:                         AtomicBool::new(false),
         }
@@ -207,7 +152,13 @@ where
             poisoned:                         AtomicBool::new(false),
         }
     }
+}
 
+impl<T, L, R> Mutex<T, L, R>
+where
+    L: LockPolicy,
+    R: RetryPolicy,
+{
     /// Attempts to acquire the mutex without blocking.
     pub fn try_lock(&self) -> MutexTryLockResult<'_, T, L>
     {
@@ -328,8 +279,8 @@ where
 impl<T, L, R> Mutex<T, L, R>
 where
     T: Default,
-    L: LockPolicy + Default,
-    R: RetryPolicy + Default,
+    L: LockPolicy,
+    R: RetryPolicy,
 {
     /// Takes the value out of the mutex, leaving a `Default::default()` value
     /// in its place.
@@ -342,5 +293,27 @@ where
     pub fn try_take(&self) -> MutexTryExchangeResult<'_, T, L>
     {
         Ok(self.try_lock()?.take())
+    }
+}
+
+impl<'a, T, L, R>
+    crate::api::Mutex<
+        'a,
+        T,
+        MutexTryLockResult<'a, T, L>,
+        MutexLockResult<'a, T, L, R>,
+    > for Mutex<T, L, R>
+where
+    L: LockPolicy,
+    R: RetryPolicy,
+{
+    fn lock(&'a self) -> MutexLockResult<'a, T, L, R>
+    {
+        self.lock()
+    }
+
+    fn try_lock(&'a self) -> MutexTryLockResult<'a, T, L>
+    {
+        self.try_lock()
     }
 }

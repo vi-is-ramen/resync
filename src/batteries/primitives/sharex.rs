@@ -8,12 +8,18 @@ use core::cell::UnsafeCell;
 #[cfg(feature = "std")]
 use core::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(feature = "__lint")]
+use crate::lock::Atomic as DefaultLock;
+
+#[cfg(not(feature = "__lint"))]
+use crate::lock::Os as DefaultLock;
+
 /// A shareable-exclusive (read-write) lock primitive that protects a value of
 /// type `T`.
 #[allow(missing_debug_implementations)]
 pub struct Sharex<
     T,
-    L = crate::lock::Shield<crate::lock::Os>,
+    L = crate::lock::Shield<DefaultLock>,
     R = crate::retry::Yield,
 > where
     L: SharingPolicy,
@@ -28,7 +34,6 @@ pub struct Sharex<
 
 unsafe impl<T, L, R> core::marker::Sync for Sharex<T, L, R>
 where
-    T: Send + Sync,
     L: SharingPolicy,
     R: RetryPolicy,
 {
@@ -146,7 +151,13 @@ where
             poisoned:                         AtomicBool::new(false),
         }
     }
+}
 
+impl<T, L, R> Sharex<T, L, R>
+where
+    L: SharingPolicy,
+    R: RetryPolicy,
+{
     /// Attempts to acquire a shared (read) lock without blocking.
     pub fn try_read(&self) -> SharexTryReadResult<'_, T, L>
     {
@@ -354,8 +365,8 @@ where
 impl<T, L, R> Sharex<T, L, R>
 where
     T: Default,
-    L: SharingPolicy + Default,
-    R: RetryPolicy + Default,
+    L: SharingPolicy,
+    R: RetryPolicy,
 {
     /// Takes the value out of the lock, leaving a `Default::default()` value in
     /// its place.
@@ -370,5 +381,49 @@ where
     ) -> Result<T, TryLockError<ExGuard<'_, T, L>, L::Error>>
     {
         Ok(self.try_write()?.take())
+    }
+}
+
+impl<'a, T, L, R>
+    crate::api::Mutex<
+        'a,
+        T,
+        SharexTryWriteResult<'a, T, L>,
+        SharexWriteResult<'a, T, L, R>,
+    > for Sharex<T, L, R>
+where
+    L: SharingPolicy,
+    R: RetryPolicy,
+{
+    fn lock(&'a self) -> SharexWriteResult<'a, T, L, R>
+    {
+        self.write()
+    }
+
+    fn try_lock(&'a self) -> SharexTryWriteResult<'a, T, L>
+    {
+        self.try_write()
+    }
+}
+
+impl<'a, T, L, R>
+    crate::api::Sharex<
+        'a,
+        T,
+        SharexTryReadResult<'a, T, L>,
+        SharexReadResult<'a, T, L, R>,
+    > for Sharex<T, L, R>
+where
+    L: SharingPolicy,
+    R: RetryPolicy,
+{
+    fn try_read(&'a self) -> SharexTryReadResult<'a, T, L>
+    {
+        self.try_read()
+    }
+
+    fn read(&'a self) -> SharexReadResult<'a, T, L, R>
+    {
+        self.read()
     }
 }

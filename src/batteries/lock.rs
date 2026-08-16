@@ -24,24 +24,39 @@ pub use shield::*;
 pub use fs::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "linux")))]
-#[doc(hidden)]
-pub mod linux;
+#[cfg_attr(feature = "__lint", allow(dead_code))]
+pub(crate) mod linux;
 
 #[cfg(all(feature = "std", target_os = "linux"))]
+#[cfg_attr(
+    feature = "__lint",
+    allow(ambiguous_glob_reexports, unused_imports, dead_code)
+)]
 pub use linux::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "windows")))]
-#[doc(hidden)]
-pub mod windows;
+#[cfg_attr(
+    feature = "__lint",
+    allow(ambiguous_glob_reexports, unused_imports, dead_code)
+)]
+pub(crate) mod windows;
 
 #[cfg(all(feature = "std", target_os = "windows"))]
+#[cfg_attr(
+    feature = "__lint",
+    allow(ambiguous_glob_reexports, unused_imports, dead_code)
+)]
 pub use windows::*;
 
 #[cfg(any(feature = "__lint", all(feature = "std", target_os = "macos")))]
-#[doc(hidden)]
-pub mod macos;
+#[cfg_attr(feature = "__lint", allow(dead_code))]
+pub(crate) mod macos;
 
 #[cfg(all(feature = "std", target_os = "macos"))]
+#[cfg_attr(
+    feature = "__lint",
+    allow(ambiguous_glob_reexports, unused_imports, dead_code)
+)]
 pub use macos::*;
 
 /// Fallback to the atomic lock strategy when the current OS is not natively
@@ -57,21 +72,27 @@ pub use macos::*;
         ))
     )
 ))]
-#[doc(hidden)]
-pub mod fallback
+pub(crate) mod fallback
 {
+    /// Fallback `Os` lock variant.
     pub type Os = super::Atomic;
 }
 
-#[cfg(all(
-    feature = "std",
-    not(any(target_os = "linux", target_os = "windows", target_os = "macos",))
+#[cfg(any(
+    feature = "__lint",
+    not(all(
+        feature = "std",
+        any(target_os = "linux", target_os = "windows", target_os = "macos",)
+    ))
 ))]
+#[cfg_attr(
+    feature = "__lint",
+    allow(ambiguous_glob_reexports, unused_imports, dead_code)
+)]
 pub use fallback::*;
 
 #[cfg(any(feature = "__lint", not(feature = "std")))]
-#[doc(hidden)]
-pub mod irq;
+pub(crate) mod irq;
 
-#[cfg(not(feature = "std"))]
+#[cfg(any(feature = "__lint", not(feature = "std")))]
 pub use irq::*;

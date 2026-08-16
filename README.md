@@ -1,5 +1,4 @@
 # Resync
-
 [![Crates.io](https://img.shields.io/crates/v/resync.svg)](https://crates.io/crates/resync)
 [![Documentation](https://docs.rs/resync/badge.svg)](https://docs.rs/resync)
 [![License](https://img.shields.io/crates/l/resync.svg)](#license)
@@ -32,10 +31,12 @@ backends at compile time using generic traits.
 ## Features
 
 - **Composable Primitives**: Decouple lock acquisition (`LockPolicy`) from retry/waiting strategies (`RetryPolicy`).
+- **Advanced Synchronization**: Includes `Gate` (controllable barriers), `Semaphore` (resource pooling), and `Condvar` (condition variables).
+- **Lock Poisoning**: Automatically detects panics inside critical sections (when `std` is enabled) and marks locks as poisoned, protecting data integrity with granular error types (`AcquireError`, `TryLockError`).
 - **`no_std` Support**: Fully compatible with `#![no_std]` environments by disabling the default `std` feature.
 - **Nightly Rust Optimizations**: Automatically leverages nightly features like `const_trait_impl` and `const_default` for zero‑cost abstractions when compiled on a nightly toolchain.
 - **Deadlock Prevention**: Includes composite locks (like `Nested`) that enforce a fixed acquisition and release order.
-- **Granular Error Handling**: Distinct result types (`LockResult` and `RetryResult`) allow your code to differentiate between a busy lock, a successful acquisition, and unrecoverable system aborts.
+- **Granular Error Handling**: Distinct result types allow your code to differentiate between a busy lock, a successful acquisition, a timeout, and unrecoverable system aborts.
 
 ## Installation
 
@@ -67,12 +68,38 @@ fn main() {
     let mutex = Mutex::<u32>::new(42);
     {
         // Acquire the lock.
-        // Returns an error if the underlying lock or retry policy reports an unrecoverable issue.
+        // Returns an error if the underlying lock or retry policy reports an unrecoverable issue,
+        // or if the lock was poisoned by a panicking thread.
         let mut guard = mutex.lock().unwrap();
         *guard += 1;
         assert_eq!(*guard, 43);
     } // Guard is dropped, the lock is automatically released.
 }
+```
+
+### Controlling Thread Flow with `Gate`
+
+A `Gate` acts as a controllable barrier. By default, it starts in the **closed** state, blocking any threads that call `wait()`. This is perfect for initializing a pool of workers that must not start processing until the setup phase is complete.
+
+```rust
+use resync::{Gate, lock::Atomic, retry::Yield};
+use std::sync::Arc;
+use std::thread;
+
+let gate = Arc::new(Gate::<Atomic, Yield>::new()); // Starts closed
+
+let workers: Vec<_> = (0..4).map(|i| {
+    let g = Arc::clone(&gate);
+    thread::spawn(move || {
+        g.wait().unwrap(); // Blocks here
+        println!("Worker {i} started!");
+    })
+}).collect();
+
+// ... perform setup ...
+gate.open(); // Unblocks all workers simultaneously
+
+for w in workers { w.join().unwrap(); }
 ```
 
 ### Customizing Lock and Retry Strategies
@@ -90,95 +117,19 @@ let mutex: Mutex<u32, Atomic, Busy> = Mutex::new(0);
 let guard = mutex.lock().unwrap();
 ```
 
-### Using Locks Directly (`LockPolicy`)
-
-If you don't need a full `Mutex` and just need raw lock semantics, you can use the `LockPolicy` implementations directly.
-
-```rust
-use resync::traits::LockPolicy;
-use resync::lock::Atomic;
-use resync::LockStatus;
-
-let lock = Atomic::new();
-
-match unsafe { lock.try_lock(0) } {
-    Ok(LockStatus::Done(meta))  => {
-        println!("Successfully acquired!");
-        // Release the lock (idempotent)
-        unsafe { lock.free(&meta) };
-    },
-    Ok(LockStatus::Fail)  => println!("Lock is currently held by someone else."),
-    Err(e) => println!("Unrecoverable system error: {:?}", e),
-}
-```
-
-### Composite Locks (Deadlock Prevention)
-
-The `Nested` lock allows you to compose two locks together. It always acquires the first lock (`L1`)
-before the second (`L2`), and releases them in reverse order (`L2` then `L1`). This deterministic
-ordering helps prevent deadlocks when multiple locks are required.
-
-```rust
-use resync::lock::{Atomic, Nested};
-use resync::traits::LockPolicy;
-use resync::LockStatus;
-
-type SafeNestedLock = Nested<Atomic, Atomic>;
-
-let lock = SafeNestedLock::default();
-
-if let Ok(LockStatus::Done(meta)) = unsafe { lock.try_lock(0) } {
-    println!("Acquired both inner locks safely!");
-    unsafe { lock.free(&meta) }; // Releases L2, then L1
-}
-```
-
-## Extensibility
-
-Because Resync relies on traits (`LockPolicy` and `RetryPolicy`), you can implement your own lock or
-retry strategies (e.g., ticket locks, exponential backoff, or hardware‑specific pause
-instructions) and plug them directly into the `Mutex`.
-
-```rust
-use resync::traits::RetryPolicy;
-use resync::RetryResult;
-
-struct ExponentialBackoffRetry { /* ... */ }
-
-impl RetryPolicy for ExponentialBackoffRetry {
-    type Error = core::convert::Infallible;
-
-    fn retry(&self, current_iteration: usize) -> RetryResult<Self::Error> {
-        // Custom backoff logic here
-        Ok(())
-    }
-}
-```
-
 ## Feature Flags
 
-- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`), which calls `std::thread::yield_now()`.
-- **`no_std`**: When disabled, the crate becomes `#![no_std]` and the default retry strategy falls back to `retry::Busy` (which issues `core::hint::spin_loop()`).
+- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`), OS-specific lock backends, `Condvar`, and **Lock Poisoning**. When disabled, the crate becomes `#![no_std]` and the default retry strategy falls back to `retry::Busy` (which issues `core::hint::spin_loop()`). Poisoning overhead is completely eliminated.
+- **`dev`** *(disabled by default)*: Enables internal and unstable API public. It includes internal types and traits and API which is not stabilized yet (like undone or untested primitives and so on).
+- **`fake`** *(disabled by default)*: Enables `Fake` type which implements `LockPolicy`, `SharingPolicy`, `NewLocked` and `RetryPolicy` but doesn't do anything. May be useful for mocks but **DANGEROUS** for use as real traits implementation.
+- **`__lint`** *(disabled by default)*: Development-only feature, **MUST NOT** be enabled on build or when used as a dependency. This feature exists only for tuning `rust-analyzer` for Resync developers.
 
-## Minimum Supported Rust Version (MSRV)
-
-Resync is continuously tested against the latest **stable**, **beta**, and **nightly** Rust channels.
 
 ## License
 
 Licensed under either of
 
-* Apache License, Version 2.0
-  ([LICENSE-APACHE](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-* MIT license
-  ([LICENSE-MIT](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+* [Apache License, Version 2.0](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-APACHE)
+* [MIT license](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-MIT)
 
 at your option.
-
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
----
-
-Made with ❤️ for the Rust community

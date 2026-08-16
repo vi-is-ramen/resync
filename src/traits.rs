@@ -55,10 +55,10 @@
 //!
 //! See the documentation of each trait for concrete usage.
 
-mod lock_policy;
-mod new_locked;
-mod retry_policy;
-mod sharing_policy;
+pub(crate) mod lock_policy;
+pub(crate) mod new_locked;
+pub(crate) mod retry_policy;
+pub(crate) mod sharing_policy;
 pub use lock_policy::LockPolicy;
 pub use new_locked::NewLocked;
 pub use retry_policy::RetryPolicy;

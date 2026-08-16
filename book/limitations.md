@@ -23,3 +23,7 @@ the waiting thread will burn CPU cycles until the OS reschedules the
 holder. Always prefer `retry::Yield` in user-space applications
 unless you are certain the critical section is shorter than a context
 switch.
+- **Poisoning Requires `std`:** The lock poisoning mechanism relies on
+`std::thread::panicking()` to detect unwinding. In `#![no_std]` environments,
+panics typically abort the process, making poisoning irrelevant. Thus, poisoning
+features are gated behind the `std` feature and add zero overhead to bare-metal targets.

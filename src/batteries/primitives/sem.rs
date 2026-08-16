@@ -17,6 +17,12 @@ use crate::traits::{LockPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 
+#[cfg(feature = "__lint")]
+use crate::lock::Atomic as DefaultLock;
+
+#[cfg(not(feature = "__lint"))]
+use crate::lock::Os as DefaultLock;
+
 /// A counting semaphore that limits concurrent access to a pool of resources.
 ///
 /// A semaphore holds a certain number of "permits". Threads can acquire permits
@@ -28,7 +34,7 @@ use core::cell::UnsafeCell;
 /// - `R`: The [`RetryPolicy`] used to wait when the lock protecting the counter
 ///   is contended or when no permits are available.
 #[allow(missing_debug_implementations)]
-pub struct Semaphore<L = crate::lock::Os, R = crate::retry::Yield>
+pub struct Semaphore<L = DefaultLock, R = crate::retry::Yield>
 where
     L: LockPolicy,
     R: RetryPolicy,
