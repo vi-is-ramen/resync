@@ -11,7 +11,7 @@ repository = "https://github.com/vi-is-ramen/resync"
 readme = "README.md"
 homepage = "https://github.com/vi-is-ramen/resync"
 categories = ["concurrency", "no-std", "os", "no-std::no-alloc", "algorithms", "embedded", "rust-patterns"]
-keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock", "rwlock", "sharex", "thread", "condvar"]
+keywords = ["mutex", "synchronization", "no_std", "lock", "thread"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
