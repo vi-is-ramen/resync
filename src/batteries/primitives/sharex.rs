@@ -43,8 +43,11 @@ use core::cell::UnsafeCell;
 /// [`crate::retry::Yield`] as the retry policy (when the `std` feature is
 /// enabled).
 #[allow(missing_debug_implementations)]
-pub struct Sharex<T, L = crate::lock::Os, R = crate::retry::Yield>
-where
+pub struct Sharex<
+    T,
+    L = crate::lock::Shield<crate::lock::Os>,
+    R = crate::retry::Yield,
+> where
     L: SharingPolicy,
     R: RetryPolicy,
 {
