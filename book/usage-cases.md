@@ -1,134 +1,121 @@
-# 4. Usage Cases & Possibilities
+# 5. Usage Cases & Full Examples
 
-## Case A: The Standard Library Replacement
-For typical applications where you just want a fast mutex:
+## Case A: The Fair Read-Write Lock (Preventing Writer Starvation)
+
+In standard `std::sync::RwLock` or basic atomic RW locks, a continuous stream
+of readers can starve a waiting writer indefinitely. Resync solves this with
+the `Shield` battery, which wraps any `SharingPolicy` and blocks new readers
+the moment a writer starts waiting.
 
 ```rust
-use resync::Mutex;
+use resync::{Sharex, lock::{Os, Shield}, retry::Yield};
+
+// Define a fair RW lock type
+type FairRwLock<T> = Sharex<T, Shield<Os>, Yield>;
+
+let lock = FairRwLock::new(vec![1, 2, 3]);
+
+// Readers can proceed concurrently
+let r1 = lock.read().unwrap();
+
+// If a writer tries to acquire and fails, Shield increments a pending
+// counter. Subsequent readers will receive `LockStatus::Fail` and yield,
+// guaranteeing the writer gets the lock as soon as `r1` is dropped.
+```
+
+## Case B: Thread Pool Initialization with `Gate`
+
+When spawning a pool of worker threads, you often want them to block until the
+main thread finishes setting up the environment. Using a `std::sync::Barrier`
+requires knowing the exact number of threads upfront and is single-use. Using
+channels introduces allocation overhead.
+
+`Gate` starts closed (via the `NewLocked` trait), ensuring no thread can slip
+through before the setup is done (preventing TOCTOU races).
+
+```rust
+use resync::{Gate, lock::Os, retry::Yield};
+use std::sync::Arc;
+use std::thread;
+
+fn main() {
+    // Gate is CLOSED by default.
+    let gate = Arc::new(Gate::<Os, Yield>::new());
+    
+    let workers: Vec<_> = (0..8).map(|id| {
+        let g = Arc::clone(&gate);
+        thread::spawn(move || {
+            // All 8 threads block here immediately.
+            g.wait().unwrap();
+            println!("Worker {id} is processing!");
+        })
+    }).collect();
+
+    // Main thread does heavy setup...
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    
+    // Unleash all workers simultaneously.
+    gate.open();
+
+    for w in workers { w.join().unwrap(); }
+}
+```
+
+## Case C: Bare-Metal Kernel Development (`no_std` + `Irq`)
+
+In OS kernel development, if a thread holds a spinlock and gets interrupted by
+a hardware IRQ, and the IRQ handler tries to acquire the *same* spinlock, the
+system deadlocks. 
+
+Resync provides the `Irq` lock policy, which automatically saves the CPU flags,
+disables interrupts on acquisition, and restores them on release.
+
+```rust,ignore
+// In a #![no_std] kernel environment
+use resync::{Mutex, lock::Irq, retry::Busy};
+
+// The lock protects per-CPU data.
+static KERNEL_STATE: Mutex<u32, Irq, Busy> = Mutex::new(0);
+
+fn thread_context() {
+    // Interrupts are disabled while this guard is alive.
+    let mut state = KERNEL_STATE.lock().unwrap();
+    *state += 1;
+}
+
+fn hardware_interrupt_handler() {
+    // Safe to acquire the lock here, because thread_context 
+    // guaranteed interrupts were disabled before taking it.
+    let mut state = KERNEL_STATE.lock().unwrap();
+    *state += 1;
+}
+```
+
+## Case D: Graceful Recovery from Poisoning
+
+Unlike `std::sync::Mutex` which forces you to `unwrap()` or manually extract
+the inner error, Resync's `AcquireError` allows you to match on the exact
+reason of failure, including timeouts from custom `RetryPolicy`
+implementations.
+
+```rust
+use resync::{Mutex, AcquireError, lock::Os, retry::Yield};
 
 let mutex = Mutex::<i32>::new(42);
-let guard = mutex.lock().unwrap();
-```
-Under the hood: Uses `lock::Os` (e.g. futexes/SRWLOCK) and `retry::Yield`
-(if std is enabled, `retry::Busy` otherwise).
 
-## Case B: Embedded / `no_std` Environments
-In kernel modules or microcontrollers, yielding to an OS thread scheduler
-is impossible. By disabling the `std` feature, Resync automatically swaps
-the default retry strategy to `retry::Busy`, which issues architecture-specific
-pause instructions (like `PAUSE` on x86 or `YIELD` on ARM) to reduce power
-consumption and bus contention during tight loops.
-
-```toml
-# Cargo.toml
-[dependencies]
-resync = { version = "...", default-features = false }
-```
-
-## Case C: High-Contention Customization
-If you know a specific lock will experience extreme contention, a standard
-busy-wait might cause CPU starvation. You can implement a custom `RetryPolicy`
-with exponential backoff and plug it into the Mutex:
-
-```rust
-use resync::lock::Atomic;
-use resync::{RetryPolicy, Mutex, RetryResult};
-
-struct BackoffRetry(u32);
-
-impl Default for BackoffRetry {
-    fn default() -> Self { Self(0) }
-}
-
-impl RetryPolicy for BackoffRetry
-{
-    type Error = core::convert::Infallible;
-
-    fn retry(&self, _current_iteration: usize) -> RetryResult<Self::Error>
-    {
-        // Custom backoff logic here...
-        Ok(())
+match mutex.lock() {
+    Ok(guard) => println!("Data is safe: {}", *guard),
+    Err(AcquireError::Poisoned(err)) => {
+        println!("Thread panicked! Inspecting corrupted data...");
+        let mut guard = err.into_inner();
+        *guard = 0; // Manually repair the state
+        unsafe { mutex.clear_poison(); }
+    },
+    Err(AcquireError::Retry(timeout_err)) => {
+        eprintln!("Lock acquisition timed out: {}", timeout_err);
+    },
+    Err(AcquireError::Lock(os_err)) => {
+        eprintln!("Fatal OS error: {}", os_err);
     }
-}
-
-pub type BackoffMutex<T, L> = Mutex<T, L, BackoffRetry>;
-
-// Explicitly define the types
-let mutex = BackoffMutex::<u32, Atomic>::new(0);
-```
-
-## Case D: Controlling Thread Flow with `Gate`
-A `Gate` acts as a controllable barrier. By default, it starts in the **closed**
-state (using the `NewLocked` trait), blocking any threads that call `wait()`. This
-is perfect for initializing a pool of workers that must not start processing until
-the setup phase is complete.
-
-```rust
-use resync::{Gate, lock::Atomic, retry::Yield};
-use std::sync::Arc;
-use std::thread;
-
-let gate = Arc::new(Gate::<Atomic, Yield>::new()); // Starts closed
-
-let workers: Vec<_> = (0..4).map(|i| {
-    let g = Arc::clone(&gate);
-    thread::spawn(move || {
-        g.wait().unwrap(); // Blocks here
-        println!("Worker {i} started!");
-    })
-}).collect();
-
-// ... perform setup ...
-gate.open(); // Unblocks all workers simultaneously
-
-for w in workers { w.join().unwrap(); }
-```
-
-## Case E: Resource Pooling with `Semaphore`
-Use a `Semaphore` to limit concurrent access to a pool of resources, such as
-database connections or worker threads.
-
-```rust
-use resync::{Semaphore, lock::Os, retry::Yield};
-use std::sync::Arc;
-use std::thread;
-
-// Allow up to 3 concurrent connections
-let sem = Arc::new(Semaphore::<Os, Yield>::new(3));
-
-let handles: Vec<_> = (0..10).map(|i| {
-    let s = Arc::clone(&sem);
-    thread::spawn(move || {
-        s.acquire().unwrap();
-        println!("Task {i} acquired a connection");
-        // ... do work ...
-        s.release().unwrap();
-    })
-}).collect();
-```
-
-## Case F: Event Waiting with `Condvar`
-`Condvar` allows threads to wait for a specific condition to become true, fully
-respecting the poisoning semantics of the associated `Mutex`.
-
-```rust
-use resync::{Mutex, Condvar, AcquireError};
-use std::sync::Arc;
-use std::thread;
-
-let pair = Arc::new((Mutex::new(false), Condvar::new()));
-let pair2 = Arc::clone(&pair);
-
-thread::spawn(move || {
-    let (lock, cvar) = &*pair2;
-    let mut started = lock.lock().unwrap();
-    *started = true;
-    cvar.notify_one();
-});
-
-let (lock, cvar) = &*pair;
-let mut started = lock.lock().unwrap();
-while !*started {
-    started = cvar.wait(started, lock).unwrap();
 }
 ```

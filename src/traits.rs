@@ -1,7 +1,7 @@
 //! Policies and traits for synchronisation primitives.
 //!
-//! This module provides three core traits that separate the concerns of
-//! **acquisition**, **waiting**, and **shared access**:
+//! This module provides core traits that separate the concerns of
+//! **acquisition**, **waiting**, **shared access**, and **poisoning**:
 //!
 //! - [`LockPolicy`] – defines exclusive (writer) lock operations.
 //! - [`SharingPolicy`] – extends [`LockPolicy`] with shared (reader)
@@ -10,6 +10,7 @@
 //!   unavailable.
 //! - [`NewLocked`] – an optional extension trait for locks that can be
 //!   initialized in the acquired state.
+//! - [`PoisonPolicy`] – defines how a lock reacts to thread panics.
 //!
 //! # Design Philosophy
 //!
@@ -22,6 +23,8 @@
 //! - **Testing**: Inject mock policies to simulate lock contention or errors.
 //! - **Portability**: Use the same lock interface on bare‑metal (where parking
 //!   may not be available) and on hosted OSes.
+//! - **Zero-cost abstractions**: Disable poisoning overhead entirely via
+//!   [`PoisonPolicy`] for critical paths.
 //!
 //! # Relationship Between Traits
 //!
@@ -32,34 +35,27 @@
 //! (adds shared ops)
 //!
 //! RetryPolicy (used by both during waiting)
+//! PoisonPolicy (used by guards on drop)
 //! ```
-//!
-//! A typical lock implementation (e.g., `Mutex<L, R>`) will hold:
-//! - A policy `L: LockPolicy` for the actual lock state.
-//! - A policy `R: RetryPolicy` for the waiting strategy.
-//!
-//! The lock's `lock()` method repeatedly calls `L::try_lock()` and, if it
-//! fails, calls `R::retry()` until either the lock is acquired or the retry
-//! policy aborts.
 //!
 //! # Safety
 //!
 //! [`LockPolicy`] and [`SharingPolicy`] are `unsafe` traits because they
 //! directly manipulate memory and synchronisation primitives. Implementors must
 //! uphold strict ordering guarantees to prevent data races. In contrast,
-//! [`RetryPolicy`] and [`NewLocked`] are safe because they only affect the
-//! current thread's execution and do not touch the lock's internals during
-//! regular operations.
+//! [`RetryPolicy`], [`NewLocked`], and [`PoisonPolicy`] are safe because they
+//! only affect the current thread's execution or manage isolated state.
 //!
 //! # Examples
 //!
 //! See the documentation of each trait for concrete usage.
-
-pub(crate) mod lock_policy;
-pub(crate) mod new_locked;
-pub(crate) mod retry_policy;
-pub(crate) mod sharing_policy;
+mod lock_policy;
+mod new_locked;
+mod poison_policy;
+mod retry_policy;
+mod sharing_policy;
 pub use lock_policy::LockPolicy;
 pub use new_locked::NewLocked;
+pub use poison_policy::PoisonPolicy;
 pub use retry_policy::RetryPolicy;
 pub use sharing_policy::SharingPolicy;

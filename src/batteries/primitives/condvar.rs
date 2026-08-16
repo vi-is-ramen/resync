@@ -10,19 +10,21 @@
 //! Unlike OS-level condition variables that require kernel support, this
 //! implementation uses `std::thread::park` and `Thread::unpark` to manage
 //! waiting threads. The internal wait queue is protected by a fast,
-//! non-blocking atomic spinlock (`lock::Atomic` + `retry::Busy`), ensuring
-//! minimal overhead when registering or waking threads.
+//! non-blocking atomic spinlock (`lock::Atomic` + `retry::Busy` +
+//! `poison::NoPoison`), ensuring minimal overhead when registering or waking
+//! threads.
 //!
 //! # Poisoning
 //!
 //! Because `Condvar` releases and reacquires the user-provided [`Mutex`], it
-//! fully respects the lock's poisoning semantics. If another thread panics
-//! while holding the mutex, the subsequent reacquisition in
-//! [`wait`](Self::wait) or [`wait_timeout`](Self::wait_timeout) will return an
+//! fully respects the lock's poisoning semantics (defined by its
+//! `PoisonPolicy`). If another thread panics while holding the mutex, the
+//! subsequent reacquisition in [`wait`](Self::wait) or
+//! [`wait_timeout`](Self::wait_timeout) will return an
 //! [`AcquireError::Poisoned`] error, allowing the caller to handle the
 //! inconsistent state.
 
-use crate::traits::{LockPolicy, RetryPolicy};
+use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, ExGuard, Mutex};
 use std::collections::VecDeque;
 use std::thread::{self, Thread};
@@ -37,46 +39,35 @@ use std::thread::{self, Thread};
 #[cfg(feature = "std")]
 pub struct Condvar
 {
-    waiters: Mutex<VecDeque<Thread>, crate::lock::Atomic, crate::retry::Busy>,
+    waiters: Mutex<
+        VecDeque<Thread>,
+        crate::lock::Atomic,
+        crate::retry::Busy,
+        crate::poison::NoPoison,
+    >,
 }
 
 /// Result type for [`Condvar::wait_timeout`] operations.
-///
-/// Returns a tuple containing the reacquired [`ExGuard`] and a
-/// [`WaitTimeoutResult`] indicating whether the wait timed out.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
-/// panicking thread, or if a fatal lock/retry error occurs during
-/// reacquisition.
-pub type CondvarWaitTimeoutResult<'a, T, L, R, M>
+pub type CondvarWaitTimeoutResult<'a, T, L, R, P, M>
 where
     L: LockPolicy<Meta = M> + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 = Result<
-    (ExGuard<'a, T, L, M>, WaitTimeoutResult),
-    AcquireError<ExGuard<'a, T, L, M>, L::Error, R::Error>,
+    (ExGuard<'a, T, L, P, M>, WaitTimeoutResult),
+    AcquireError<ExGuard<'a, T, L, P, M>, L::Error, R::Error>,
 >;
 
 /// Result type for [`Condvar::wait`] operations.
-///
-/// Returns the reacquired [`ExGuard`] upon successful wakeup and
-/// reacquisition of the lock.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
-/// panicking thread while this thread was sleeping, or if a fatal
-/// lock/retry error occurs during reacquisition.
-pub type CondvarWaitResult<'a, T, L, R, M>
+pub type CondvarWaitResult<'a, T, L, R, P, M>
 where
     L: LockPolicy<Meta = M> + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 = Result<
-    ExGuard<'a, T, L, M>,
+    ExGuard<'a, T, L, P, M>,
     AcquireError<
-        ExGuard<'a, T, L, M>,
+        ExGuard<'a, T, L, P, M>,
         <L as LockPolicy>::Error,
         <R as RetryPolicy>::Error,
     >,
@@ -94,73 +85,39 @@ impl Condvar
     }
 
     /// Blocks the current thread until the condition variable is notified.
-    ///
-    /// This method consumes the current [`ExGuard`], atomically releases the
-    /// associated lock, and puts the current thread to sleep. When the thread
-    /// is woken up, it will reacquire the lock before returning a new
-    /// [`ExGuard`].
-    ///
-    /// # Spurious Wakeups
-    ///
-    /// Threads may wake up spuriously even if not explicitly notified. It is
-    /// highly recommended to always use `wait` inside a `while` loop that
-    /// checks the underlying condition.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
-    /// panicking thread while this thread was sleeping, or if a fatal
-    /// lock/retry error occurs during reacquisition.
-    pub fn wait<'a, T, L, R, M>(
+    pub fn wait<'a, T, L, R, P, M>(
         &self,
-        guard: ExGuard<'a, T, L, M>,
-        mutex: &'a Mutex<T, L, R>,
-    ) -> CondvarWaitResult<'a, T, L, R, M>
+        guard: ExGuard<'a, T, L, P, M>,
+        mutex: &'a Mutex<T, L, R, P>,
+    ) -> CondvarWaitResult<'a, T, L, R, P, M>
     where
         L: LockPolicy<Meta = M> + Default,
         R: RetryPolicy + Default,
+        P: PoisonPolicy,
     {
-        // 1. Register the current thread in the wait queue.
         {
             let mut q = self.waiters.lock().unwrap();
             q.push_back(thread::current());
         }
 
-        // 2. Release the user-provided lock.
         drop(guard);
-
-        // 3. Park the thread.
-        // If `notify_one` or `notify_all` was called between dropping the
-        // guard and parking, the unpark token is already set, and `park()`
-        // will return immediately without blocking.
         thread::park();
 
-        // 4. Reacquire the user-provided lock.
-        // This correctly propagates `AcquireError::Poisoned` if the mutex
-        // was poisoned while we were sleeping.
         mutex.lock()
     }
 
     /// Blocks the current thread until the condition variable is notified
     /// or the specified timeout has elapsed.
-    ///
-    /// Returns a tuple containing the reacquired [`ExGuard`] and a
-    /// [`WaitTimeoutResult`] indicating whether the wait timed out.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
-    /// panicking thread, or if a fatal lock/retry error occurs during
-    /// reacquisition.
-    pub fn wait_timeout<'a, T, L, R, M>(
+    pub fn wait_timeout<'a, T, L, R, P, M>(
         &self,
-        guard: ExGuard<'a, T, L, M>,
-        mutex: &'a Mutex<T, L, R>,
+        guard: ExGuard<'a, T, L, P, M>,
+        mutex: &'a Mutex<T, L, R, P>,
         dur: std::time::Duration,
-    ) -> CondvarWaitTimeoutResult<'a, T, L, R, M>
+    ) -> CondvarWaitTimeoutResult<'a, T, L, R, P, M>
     where
         L: LockPolicy<Meta = M> + Default,
         R: RetryPolicy + Default,
+        P: PoisonPolicy,
     {
         let current = thread::current();
         {
@@ -171,8 +128,6 @@ impl Condvar
         drop(guard);
         thread::park_timeout(dur);
 
-        // Check if we were explicitly notified or if it was a timeout/spurious
-        // wakeup.
         let timed_out = {
             let mut q = self.waiters.lock().unwrap();
             if let Some(pos) = q.iter().position(|t| t.id() == current.id())
@@ -191,8 +146,6 @@ impl Condvar
     }
 
     /// Wakes up one thread waiting on this condition variable.
-    ///
-    /// If multiple threads are waiting, it is unspecified which one is woken.
     pub fn notify_one(&self)
     {
         let mut q = self.waiters.lock().unwrap();
@@ -210,7 +163,6 @@ impl Condvar
             let mut q = self.waiters.lock().unwrap();
             q.drain(..).collect::<Vec<_>>()
         };
-
         for t in waiters.drain(..)
         {
             t.unpark();

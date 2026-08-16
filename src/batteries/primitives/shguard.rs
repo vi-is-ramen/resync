@@ -1,41 +1,42 @@
 //! A shared RAII guard that provides shared (read) access to the protected
 //! data.
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, PoisonPolicy, SharingPolicy};
 use core::ops::Deref;
-#[cfg(feature = "std")]
-use core::sync::atomic::{AtomicBool, Ordering};
 
 /// A shared RAII guard that provides shared (read) access to the protected
 /// data.
 #[allow(missing_debug_implementations)]
-pub struct ShGuard<'a, T, L, M = <L as LockPolicy>::Meta>
-where L: SharingPolicy<Meta = M>
+pub struct ShGuard<'a, T, L, P, M = <L as LockPolicy>::Meta>
+where
+    L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
 {
     data:        *const T,
     lock:        &'a L,
     meta:        M,
-    #[cfg(feature = "std")]
-    poison_flag: Option<&'a AtomicBool>,
+    poison_flag: &'a P::State,
 }
 
-unsafe impl<'a, T, L, M> core::marker::Send for ShGuard<'a, T, L, M>
+unsafe impl<'a, T, L, P, M> core::marker::Send for ShGuard<'a, T, L, P, M>
 where
     T: Send,
     L: SharingPolicy<Meta = M> + Send,
+    P: PoisonPolicy,
     M: Send,
 {
 }
 
-impl<'a, T, L, M> ShGuard<'a, T, L, M>
-where L: SharingPolicy<Meta = M>
+impl<'a, T, L, P, M> ShGuard<'a, T, L, P, M>
+where
+    L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
 {
-    /// Creates a new shared guard (with `std` feature enabled).
-    #[cfg(feature = "std")]
+    /// Creates a new shared guard.
     pub fn new(
         data: *const T,
         lock: &'a L,
         meta: M,
-        poison_flag: Option<&'a AtomicBool>,
+        poison_flag: &'a P::State,
     ) -> Self
     {
         Self {
@@ -45,19 +46,13 @@ where L: SharingPolicy<Meta = M>
             poison_flag,
         }
     }
-
-    /// Creates a new shared guard (without `std` feature).
-    #[cfg(not(feature = "std"))]
-    pub fn new(data: *const T, lock: &'a L, meta: M) -> Self
-    {
-        Self { data, lock, meta }
-    }
 }
 
-impl<'a, T, L, M> core::fmt::Debug for ShGuard<'a, T, L, M>
+impl<'a, T, L, P, M> core::fmt::Debug for ShGuard<'a, T, L, P, M>
 where
     T: core::fmt::Debug,
     L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
@@ -66,23 +61,22 @@ where
     }
 }
 
-impl<'a, T, L, M> core::ops::Drop for ShGuard<'a, T, L, M>
-where L: SharingPolicy<Meta = M>
+impl<'a, T, L, P, M> core::ops::Drop for ShGuard<'a, T, L, P, M>
+where
+    L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
 {
     fn drop(&mut self)
     {
-        #[cfg(feature = "std")]
-        if let Some(flag) = self.poison_flag
-            && std::thread::panicking()
-        {
-            flag.store(true, Ordering::Release);
-        }
+        P::on_drop(self.poison_flag);
         self.lock.free_share(&self.meta);
     }
 }
 
-impl<'a, T, L, M> Deref for ShGuard<'a, T, L, M>
-where L: SharingPolicy<Meta = M>
+impl<'a, T, L, P, M> Deref for ShGuard<'a, T, L, P, M>
+where
+    L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
 {
     type Target = T;
     fn deref(&self) -> &Self::Target

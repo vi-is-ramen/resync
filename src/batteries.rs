@@ -8,9 +8,14 @@
 //!   OS-specific futexes).
 //! - [`retry`]: Implementations of [`RetryPolicy`](crate::traits::RetryPolicy)
 //!   (e.g., busy-wait, OS yield).
+//! - [`poison`]: Implementations of
+//!   [`PoisonPolicy`](crate::traits::PoisonPolicy) (e.g., standard panic
+//!   detection, zero-overhead no-poison).
 //! - [`primitives`]: High-level, user-facing synchronization primitives like
-//!   [`Mutex`](crate::Mutex) that combine locks and retry policies.
+//!   [`Mutex`](crate::Mutex) that combine locks, retry policies, and poison
+//!   policies.
 
 pub mod lock;
+pub mod poison;
 pub mod primitives;
 pub mod retry;

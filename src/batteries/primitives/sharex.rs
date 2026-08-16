@@ -1,16 +1,12 @@
 //! A shareable-exclusive (read-write) lock primitive.
-
-use crate::traits::{RetryPolicy, SharingPolicy};
+use crate::traits::{PoisonPolicy, RetryPolicy, SharingPolicy};
 use crate::{
     AcquireError, ExGuard, LockStatus, PoisonError, ShGuard, TryLockError,
 };
 use core::cell::UnsafeCell;
-#[cfg(feature = "std")]
-use core::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "__lint")]
 use crate::lock::Atomic as DefaultLock;
-
 #[cfg(not(feature = "__lint"))]
 use crate::lock::Os as DefaultLock;
 
@@ -21,166 +17,147 @@ pub struct Sharex<
     T,
     L = crate::lock::Shield<DefaultLock>,
     R = crate::retry::Yield,
+    P = crate::poison::DefaultPoison,
 > where
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     inner:    UnsafeCell<T>,
     lock:     L,
     retry:    R,
-    #[cfg(feature = "std")]
-    poisoned: AtomicBool,
+    poisoned: P::State,
 }
 
-unsafe impl<T, L, R> core::marker::Sync for Sharex<T, L, R>
+unsafe impl<T, L, R, P> core::marker::Sync for Sharex<T, L, R, P>
 where
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
 }
 
-unsafe impl<T, L, R> core::marker::Send for Sharex<T, L, R>
+unsafe impl<T, L, R, P> core::marker::Send for Sharex<T, L, R, P>
 where
     T: Send,
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
 }
 
-impl<T, L, R> core::default::Default for Sharex<T, L, R>
+impl<T, L, R, P> core::default::Default for Sharex<T, L, R, P>
 where
     T: Default,
     L: SharingPolicy + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 {
     fn default() -> Self
     {
         Self {
-            inner:                            UnsafeCell::default(),
-            lock:                             L::default(),
-            retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
+            inner:    UnsafeCell::default(),
+            lock:     L::default(),
+            retry:    R::default(),
+            poisoned: P::new_state(),
         }
     }
 }
 
 /// Result type for non-blocking [`Sharex::try_read`] operations.
-///
-/// # Errors
-///
-/// Returns a [`TryLockError`] if the lock is currently held exclusively
-/// by a writer (`Contention`), if an unrecoverable error occurs in the
-/// underlying sharing policy (`Lock`), or if the lock was poisoned
-/// (`Poisoned`).
-pub type SharexTryReadResult<'a, T, L>
-where L: SharingPolicy + Default
-= Result<ShGuard<'a, T, L>, TryLockError<ShGuard<'a, T, L>, L::Error>>;
+pub type SharexTryReadResult<'a, T, L, P>
+where
+    L: SharingPolicy,
+    P: PoisonPolicy,
+= Result<ShGuard<'a, T, L, P>, TryLockError<ShGuard<'a, T, L, P>, L::Error>>;
 
 /// Result type for non-blocking [`Sharex::try_write`] operations.
-///
-/// # Errors
-///
-/// Returns a [`TryLockError`] if the lock is currently held by any reader
-/// or writer (`Contention`), if an unrecoverable error occurs, or if the
-/// lock was poisoned.
-pub type SharexTryWriteResult<'a, T, L>
-where L: SharingPolicy + Default
-= Result<ExGuard<'a, T, L>, TryLockError<ExGuard<'a, T, L>, L::Error>>;
+pub type SharexTryWriteResult<'a, T, L, P>
+where
+    L: SharingPolicy,
+    P: PoisonPolicy,
+= Result<ExGuard<'a, T, L, P>, TryLockError<ExGuard<'a, T, L, P>, L::Error>>;
 
 /// Result type for blocking [`Sharex::read`] operations.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
-/// error occurs in the underlying sharing policy, or if the retry policy
-/// aborts the acquisition loop.
-pub type SharexReadResult<'a, T, L, R>
+pub type SharexReadResult<'a, T, L, R, P>
 where
-    L: SharingPolicy + Default,
-    R: RetryPolicy + Default,
+    L: SharingPolicy,
+    R: RetryPolicy,
+    P: PoisonPolicy,
 = Result<
-    ShGuard<'a, T, L>,
-    AcquireError<ShGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
+    ShGuard<'a, T, L, P>,
+    AcquireError<ShGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
 /// Result type for blocking [`Sharex::write`] operations.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
-/// error occurs, or if the retry policy aborts.
-pub type SharexWriteResult<'a, T, L, R>
+pub type SharexWriteResult<'a, T, L, R, P>
 where
-    L: SharingPolicy + Default,
-    R: RetryPolicy + Default,
+    L: SharingPolicy,
+    R: RetryPolicy,
+    P: PoisonPolicy,
 = Result<
-    ExGuard<'a, T, L>,
-    AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
+    ExGuard<'a, T, L, P>,
+    AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
 /// Result type for blocking [`Sharex::exchange`] and [`Sharex::take`]
 /// operations.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
-/// lock error occurs, or if the retry policy aborts.
-pub type SharexExchangeResult<'a, T, L, R>
+pub type SharexExchangeResult<'a, T, L, R, P>
 where
-    L: SharingPolicy + Default,
-    R: RetryPolicy + Default,
+    L: SharingPolicy,
+    R: RetryPolicy,
+    P: PoisonPolicy,
 = Result<
     T,
-    AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
+    AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
-impl<T, L, R> Sharex<T, L, R>
+/// Result type for blocking [`Sharex::try_exchange`] and [`Sharex::try_take`]
+/// operations.
+pub type SharexTryExchangeResult<'a, T, L, P>
+where
+    L: SharingPolicy,
+    P: PoisonPolicy,
+= Result<T, TryLockError<ExGuard<'a, T, L, P>, L::Error>>;
+
+impl<T, L, R, P> Sharex<T, L, R, P>
 where
     L: SharingPolicy + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 {
     /// Creates a new `Sharex` lock protecting the given `value`.
     pub fn new(value: T) -> Self
     {
         Self {
-            inner:                            UnsafeCell::new(value),
-            lock:                             L::default(),
-            retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
+            inner:    UnsafeCell::new(value),
+            lock:     L::default(),
+            retry:    R::default(),
+            poisoned: P::new_state(),
         }
     }
 }
 
-impl<T, L, R> Sharex<T, L, R>
+impl<T, L, R, P> Sharex<T, L, R, P>
 where
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     /// Attempts to acquire a shared (read) lock without blocking.
-    pub fn try_read(&self) -> SharexTryReadResult<'_, T, L>
+    pub fn try_read(&self) -> SharexTryReadResult<'_, T, L, P>
     {
         match self.lock.try_share(0)
         {
             Ok(LockStatus::Done(meta)) =>
             {
-                #[cfg(feature = "std")]
-                let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                #[cfg(not(feature = "std"))]
-                let is_poisoned = false;
-
-                #[cfg(feature = "std")]
                 let guard = ShGuard::new(
                     self.inner.get(),
                     &self.lock,
                     meta,
-                    Some(&self.poisoned),
+                    &self.poisoned,
                 );
-                #[cfg(not(feature = "std"))]
-                let guard = ShGuard::new(self.inner.get(), &self.lock, meta);
-
-                if is_poisoned
+                if P::is_poisoned(&self.poisoned)
                 {
                     Err(TryLockError::Poisoned(PoisonError::new(guard)))
                 }
@@ -195,28 +172,19 @@ where
     }
 
     /// Attempts to acquire an exclusive (write) lock without blocking.
-    pub fn try_write(&self) -> SharexTryWriteResult<'_, T, L>
+    pub fn try_write(&self) -> SharexTryWriteResult<'_, T, L, P>
     {
         match unsafe { self.lock.try_lock(0) }
         {
             Ok(LockStatus::Done(meta)) =>
             {
-                #[cfg(feature = "std")]
-                let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                #[cfg(not(feature = "std"))]
-                let is_poisoned = false;
-
-                #[cfg(feature = "std")]
                 let guard = ExGuard::new(
                     self.inner.get(),
                     &self.lock,
                     meta,
-                    Some(&self.poisoned),
+                    &self.poisoned,
                 );
-                #[cfg(not(feature = "std"))]
-                let guard = ExGuard::new(self.inner.get(), &self.lock, meta);
-
-                if is_poisoned
+                if P::is_poisoned(&self.poisoned)
                 {
                     Err(TryLockError::Poisoned(PoisonError::new(guard)))
                 }
@@ -232,7 +200,7 @@ where
 
     /// Acquires a shared (read) lock, blocking the current thread until it is
     /// available.
-    pub fn read(&self) -> SharexReadResult<'_, T, L, R>
+    pub fn read(&self) -> SharexReadResult<'_, T, L, R, P>
     {
         let mut iterations = 0usize;
         loop
@@ -242,23 +210,13 @@ where
             {
                 Ok(LockStatus::Done(meta)) =>
                 {
-                    #[cfg(feature = "std")]
-                    let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                    #[cfg(not(feature = "std"))]
-                    let is_poisoned = false;
-
-                    #[cfg(feature = "std")]
                     let guard = ShGuard::new(
                         self.inner.get(),
                         &self.lock,
                         meta,
-                        Some(&self.poisoned),
+                        &self.poisoned,
                     );
-                    #[cfg(not(feature = "std"))]
-                    let guard =
-                        ShGuard::new(self.inner.get(), &self.lock, meta);
-
-                    if is_poisoned
+                    if P::is_poisoned(&self.poisoned)
                     {
                         return Err(AcquireError::Poisoned(PoisonError::new(
                             guard,
@@ -280,7 +238,7 @@ where
 
     /// Acquires an exclusive (write) lock, blocking the current thread until it
     /// is available.
-    pub fn write(&self) -> SharexWriteResult<'_, T, L, R>
+    pub fn write(&self) -> SharexWriteResult<'_, T, L, R, P>
     {
         let mut iterations = 0usize;
         loop
@@ -290,23 +248,13 @@ where
             {
                 Ok(LockStatus::Done(meta)) =>
                 {
-                    #[cfg(feature = "std")]
-                    let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                    #[cfg(not(feature = "std"))]
-                    let is_poisoned = false;
-
-                    #[cfg(feature = "std")]
                     let guard = ExGuard::new(
                         self.inner.get(),
                         &self.lock,
                         meta,
-                        Some(&self.poisoned),
+                        &self.poisoned,
                     );
-                    #[cfg(not(feature = "std"))]
-                    let guard =
-                        ExGuard::new(self.inner.get(), &self.lock, meta);
-
-                    if is_poisoned
+                    if P::is_poisoned(&self.poisoned)
                     {
                         return Err(AcquireError::Poisoned(PoisonError::new(
                             guard,
@@ -327,7 +275,8 @@ where
     }
 
     /// Exchanges the protected value with `new_value`, returning the old value.
-    pub fn exchange(&self, new_value: T) -> SharexExchangeResult<'_, T, L, R>
+    pub fn exchange(&self, new_value: T)
+    -> SharexExchangeResult<'_, T, L, R, P>
     {
         let guard = self.write()?;
         Ok(guard.exchange(new_value))
@@ -337,16 +286,15 @@ where
     pub fn try_exchange(
         &self,
         new_value: T,
-    ) -> Result<T, TryLockError<ExGuard<'_, T, L>, L::Error>>
+    ) -> SharexTryExchangeResult<'_, T, L, P>
     {
         Ok(self.try_write()?.exchange(new_value))
     }
 
     /// Returns `true` if the lock is poisoned.
-    #[cfg(feature = "std")]
     pub fn is_poisoned(&self) -> bool
     {
-        self.poisoned.load(Ordering::Acquire)
+        P::is_poisoned(&self.poisoned)
     }
 
     /// Clears the poisoned state of the lock.
@@ -355,74 +303,76 @@ where
     ///
     /// The caller must ensure that the protected data has been manually
     /// repaired or validated before calling this method.
-    #[cfg(feature = "std")]
     pub unsafe fn clear_poison(&self)
     {
-        self.poisoned.store(false, Ordering::Release);
+        unsafe {
+            P::clear_poison(&self.poisoned);
+        }
     }
 }
 
-impl<T, L, R> Sharex<T, L, R>
+impl<T, L, R, P> Sharex<T, L, R, P>
 where
     T: Default,
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     /// Takes the value out of the lock, leaving a `Default::default()` value in
     /// its place.
-    pub fn take(&self) -> SharexExchangeResult<'_, T, L, R>
+    pub fn take(&self) -> SharexExchangeResult<'_, T, L, R, P>
     {
         Ok(self.write()?.take())
     }
 
     /// Non‑blocking version of a `take` operation.
-    pub fn try_take(
-        &self,
-    ) -> Result<T, TryLockError<ExGuard<'_, T, L>, L::Error>>
+    pub fn try_take(&self) -> SharexTryExchangeResult<'_, T, L, P>
     {
         Ok(self.try_write()?.take())
     }
 }
 
-impl<'a, T, L, R>
+impl<'a, T, L, R, P>
     crate::api::Mutex<
         'a,
         T,
-        SharexTryWriteResult<'a, T, L>,
-        SharexWriteResult<'a, T, L, R>,
-    > for Sharex<T, L, R>
+        SharexTryWriteResult<'a, T, L, P>,
+        SharexWriteResult<'a, T, L, R, P>,
+    > for Sharex<T, L, R, P>
 where
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
-    fn lock(&'a self) -> SharexWriteResult<'a, T, L, R>
+    fn lock(&'a self) -> SharexWriteResult<'a, T, L, R, P>
     {
         self.write()
     }
 
-    fn try_lock(&'a self) -> SharexTryWriteResult<'a, T, L>
+    fn try_lock(&'a self) -> SharexTryWriteResult<'a, T, L, P>
     {
         self.try_write()
     }
 }
 
-impl<'a, T, L, R>
+impl<'a, T, L, R, P>
     crate::api::Sharex<
         'a,
         T,
-        SharexTryReadResult<'a, T, L>,
-        SharexReadResult<'a, T, L, R>,
-    > for Sharex<T, L, R>
+        SharexTryReadResult<'a, T, L, P>,
+        SharexReadResult<'a, T, L, R, P>,
+    > for Sharex<T, L, R, P>
 where
     L: SharingPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
-    fn try_read(&'a self) -> SharexTryReadResult<'a, T, L>
+    fn try_read(&'a self) -> SharexTryReadResult<'a, T, L, P>
     {
         self.try_read()
     }
 
-    fn read(&'a self) -> SharexReadResult<'a, T, L, R>
+    fn read(&'a self) -> SharexReadResult<'a, T, L, R, P>
     {
         self.read()
     }

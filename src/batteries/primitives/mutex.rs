@@ -1,37 +1,38 @@
 //! A mutual exclusion primitive that composes a lock policy and a retry policy.
-
 use super::ExGuard;
-use crate::traits::{LockPolicy, RetryPolicy};
+use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError, TryLockError};
 use core::cell::UnsafeCell;
-#[cfg(feature = "std")]
-use core::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "__lint")]
 use crate::lock::Atomic as DefaultLock;
-
 #[cfg(not(feature = "__lint"))]
 use crate::lock::Os as DefaultLock;
 
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
 #[allow(missing_debug_implementations)]
-pub struct Mutex<T, L = DefaultLock, R = crate::retry::Yield>
-where
+pub struct Mutex<
+    T,
+    L = DefaultLock,
+    R = crate::retry::Yield,
+    P = crate::poison::DefaultPoison,
+> where
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     inner:    UnsafeCell<T>,
     lock:     L,
     retry:    R,
-    #[cfg(feature = "std")]
-    poisoned: AtomicBool,
+    poisoned: P::State,
 }
 
-impl<T, L, R> core::fmt::Debug for Mutex<T, L, R>
+impl<T, L, R, P> core::fmt::Debug for Mutex<T, L, R, P>
 where
     T: core::fmt::Debug,
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
@@ -45,143 +46,119 @@ where
     }
 }
 
-unsafe impl<T, L, R> core::marker::Sync for Mutex<T, L, R>
+unsafe impl<T, L, R, P> core::marker::Sync for Mutex<T, L, R, P>
 where
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
 }
 
-unsafe impl<T, L, R> core::marker::Send for Mutex<T, L, R>
+unsafe impl<T, L, R, P> core::marker::Send for Mutex<T, L, R, P>
 where
     T: core::marker::Send,
     L: LockPolicy + core::marker::Send,
     R: RetryPolicy + core::marker::Send,
+    P: PoisonPolicy,
 {
 }
 
-impl<T, L, R> core::default::Default for Mutex<T, L, R>
+impl<T, L, R, P> core::default::Default for Mutex<T, L, R, P>
 where
     T: Default,
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 {
     fn default() -> Self
     {
         Self {
-            inner:                            UnsafeCell::new(T::default()),
-            lock:                             L::default(),
-            retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
+            inner:    UnsafeCell::new(T::default()),
+            lock:     L::default(),
+            retry:    R::default(),
+            poisoned: P::new_state(),
         }
     }
 }
 
 /// Result type for non-blocking [`Mutex::try_lock`] operations.
-///
-/// # Errors
-///
-/// Returns a [`TryLockError`] if the lock is currently held by another
-/// thread (`Contention`), if an unrecoverable error occurs in the
-/// underlying lock policy (`Lock`), or if the lock was poisoned by a
-/// panicking thread (`Poisoned`).
-pub type MutexTryLockResult<'a, T, L>
-where L: LockPolicy + Default
+pub type MutexTryLockResult<'a, T, L, P>
+where
+    L: LockPolicy,
+    P: PoisonPolicy,
 = Result<
-    ExGuard<'a, T, L, L::Meta>,
-    TryLockError<ExGuard<'a, T, L, L::Meta>, L::Error>,
+    ExGuard<'a, T, L, P, L::Meta>,
+    TryLockError<ExGuard<'a, T, L, P, L::Meta>, L::Error>,
 >;
 
 /// Result type for blocking [`Mutex::lock`] operations.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the lock was poisoned by a panicking
-/// thread, if an unrecoverable error occurs in the underlying lock policy,
-/// or if the retry policy aborts the acquisition loop (e.g., due to a
-/// timeout).
-pub type MutexLockResult<'a, T, L, R>
+pub type MutexLockResult<'a, T, L, R, P>
 where
-    L: LockPolicy + Default,
-    R: RetryPolicy + Default,
+    L: LockPolicy,
+    R: RetryPolicy,
+    P: PoisonPolicy,
 = Result<
-    ExGuard<'a, T, L>,
-    AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
+    ExGuard<'a, T, L, P>,
+    AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
 /// Result type for blocking [`Mutex::exchange`] and [`Mutex::take`] operations.
-///
-/// # Errors
-///
-/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
-/// lock error occurs, or if the retry policy aborts.
-pub type MutexExchangeResult<'a, T, L, R>
+pub type MutexExchangeResult<'a, T, L, R, P>
 where
-    L: LockPolicy + Default,
-    R: RetryPolicy + Default,
+    L: LockPolicy,
+    R: RetryPolicy,
+    P: PoisonPolicy,
 = Result<
     T,
-    AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
+    AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
 /// Result type for non-blocking [`Mutex::try_exchange`] and [`Mutex::try_take`]
 /// operations.
-///
-/// # Errors
-///
-/// Returns a [`TryLockError`] if the lock is currently held, if an
-/// unrecoverable lock error occurs, or if the lock is poisoned.
-pub type MutexTryExchangeResult<'a, T, L>
-where L: LockPolicy + Default
-= Result<T, TryLockError<ExGuard<'a, T, L, L::Meta>, L::Error>>;
+pub type MutexTryExchangeResult<'a, T, L, P>
+where
+    L: LockPolicy,
+    P: PoisonPolicy,
+= Result<T, TryLockError<ExGuard<'a, T, L, P, L::Meta>, L::Error>>;
 
-impl<T, L, R> Mutex<T, L, R>
+impl<T, L, R, P> Mutex<T, L, R, P>
 where
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
+    P: PoisonPolicy,
 {
     /// Creates a new mutex protecting the given `value`.
     pub fn new(value: T) -> Self
     {
         Self {
-            inner:                            UnsafeCell::new(value),
-            lock:                             L::default(),
-            retry:                            R::default(),
-            #[cfg(feature = "std")]
-            poisoned:                         AtomicBool::new(false),
+            inner:    UnsafeCell::new(value),
+            lock:     L::default(),
+            retry:    R::default(),
+            poisoned: P::new_state(),
         }
     }
 }
 
-impl<T, L, R> Mutex<T, L, R>
+impl<T, L, R, P> Mutex<T, L, R, P>
 where
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     /// Attempts to acquire the mutex without blocking.
-    pub fn try_lock(&self) -> MutexTryLockResult<'_, T, L>
+    pub fn try_lock(&self) -> MutexTryLockResult<'_, T, L, P>
     {
         match unsafe { self.lock.try_lock(0) }
         {
             Ok(LockStatus::Done(meta)) =>
             {
-                #[cfg(feature = "std")]
-                let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                #[cfg(not(feature = "std"))]
-                let is_poisoned = false;
-
-                #[cfg(feature = "std")]
                 let guard = ExGuard::new(
                     self.inner.get(),
                     &self.lock,
                     meta,
-                    Some(&self.poisoned),
+                    &self.poisoned,
                 );
-                #[cfg(not(feature = "std"))]
-                let guard = ExGuard::new(self.inner.get(), &self.lock, meta);
-
-                if is_poisoned
+                if P::is_poisoned(&self.poisoned)
                 {
                     Err(TryLockError::Poisoned(PoisonError::new(guard)))
                 }
@@ -196,7 +173,7 @@ where
     }
 
     /// Acquires the mutex, blocking the current thread until it is available.
-    pub fn lock(&self) -> MutexLockResult<'_, T, L, R>
+    pub fn lock(&self) -> MutexLockResult<'_, T, L, R, P>
     {
         let mut iterations = 0usize;
         loop
@@ -206,23 +183,13 @@ where
             {
                 Ok(LockStatus::Done(meta)) =>
                 {
-                    #[cfg(feature = "std")]
-                    let is_poisoned = self.poisoned.load(Ordering::Acquire);
-                    #[cfg(not(feature = "std"))]
-                    let is_poisoned = false;
-
-                    #[cfg(feature = "std")]
                     let guard = ExGuard::new(
                         self.inner.get(),
                         &self.lock,
                         meta,
-                        Some(&self.poisoned),
+                        &self.poisoned,
                     );
-                    #[cfg(not(feature = "std"))]
-                    let guard =
-                        ExGuard::new(self.inner.get(), &self.lock, meta);
-
-                    if is_poisoned
+                    if P::is_poisoned(&self.poisoned)
                     {
                         return Err(AcquireError::Poisoned(PoisonError::new(
                             guard,
@@ -243,24 +210,26 @@ where
     }
 
     /// Exchanges the protected value with `new_value`, returning the old value.
-    pub fn exchange(&self, new_value: T) -> MutexExchangeResult<'_, T, L, R>
+    pub fn exchange(&self, new_value: T)
+    -> MutexExchangeResult<'_, T, L, R, P>
     {
         let guard = self.lock()?;
         Ok(guard.exchange(new_value))
     }
 
     /// Non‑blocking version of [`exchange`](Self::exchange).
-    pub fn try_exchange(&self, new_value: T)
-    -> MutexTryExchangeResult<'_, T, L>
+    pub fn try_exchange(
+        &self,
+        new_value: T,
+    ) -> MutexTryExchangeResult<'_, T, L, P>
     {
         Ok(self.try_lock()?.exchange(new_value))
     }
 
     /// Returns `true` if the mutex is poisoned.
-    #[cfg(feature = "std")]
     pub fn is_poisoned(&self) -> bool
     {
-        self.poisoned.load(Ordering::Acquire)
+        P::is_poisoned(&self.poisoned)
     }
 
     /// Clears the poisoned state of the mutex.
@@ -269,50 +238,53 @@ where
     ///
     /// The caller must ensure that the protected data has been manually
     /// repaired or validated before calling this method.
-    #[cfg(feature = "std")]
     pub unsafe fn clear_poison(&self)
     {
-        self.poisoned.store(false, Ordering::Release);
+        unsafe {
+            P::clear_poison(&self.poisoned);
+        }
     }
 }
 
-impl<T, L, R> Mutex<T, L, R>
+impl<T, L, R, P> Mutex<T, L, R, P>
 where
     T: Default,
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
     /// Takes the value out of the mutex, leaving a `Default::default()` value
     /// in its place.
-    pub fn take(&self) -> MutexExchangeResult<'_, T, L, R>
+    pub fn take(&self) -> MutexExchangeResult<'_, T, L, R, P>
     {
         Ok(self.lock()?.take())
     }
 
     /// Non‑blocking version of [`take`](Self::take).
-    pub fn try_take(&self) -> MutexTryExchangeResult<'_, T, L>
+    pub fn try_take(&self) -> MutexTryExchangeResult<'_, T, L, P>
     {
         Ok(self.try_lock()?.take())
     }
 }
 
-impl<'a, T, L, R>
+impl<'a, T, L, R, P>
     crate::api::Mutex<
         'a,
         T,
-        MutexTryLockResult<'a, T, L>,
-        MutexLockResult<'a, T, L, R>,
-    > for Mutex<T, L, R>
+        MutexTryLockResult<'a, T, L, P>,
+        MutexLockResult<'a, T, L, R, P>,
+    > for Mutex<T, L, R, P>
 where
     L: LockPolicy,
     R: RetryPolicy,
+    P: PoisonPolicy,
 {
-    fn lock(&'a self) -> MutexLockResult<'a, T, L, R>
+    fn lock(&'a self) -> MutexLockResult<'a, T, L, R, P>
     {
         self.lock()
     }
 
-    fn try_lock(&'a self) -> MutexTryLockResult<'a, T, L>
+    fn try_lock(&'a self) -> MutexTryLockResult<'a, T, L, P>
     {
         self.try_lock()
     }

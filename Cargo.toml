@@ -1,6 +1,6 @@
 [package]
 name = "resync"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2024"
 rust-version = "1.98.0"
 workspace = "testing/util"
@@ -10,8 +10,8 @@ description = "A LEGO-like synchronization primitives library for Rust"
 repository = "https://github.com/vi-is-ramen/resync"
 readme = "README.md"
 homepage = "https://github.com/vi-is-ramen/resync"
-categories = ["concurrency", "no-std", "os"]
-keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock"]
+categories = ["concurrency", "no-std", "os", "no-std::no-alloc", "algorithms", "embedded", "rust-patterns"]
+keywords = ["mutex", "spinlock", "synchronization", "no_std", "lock", "rwlock", "sharex", "thread", "condvar"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }

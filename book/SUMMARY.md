@@ -4,7 +4,9 @@
 
 - [Philosophy: The "LEGO" Approach](./philosophy.md)
 - [Core Traits](./core-traits.md)
+- [Batteries Included](./batteries.md)
+- [Comparisons with Ecosystem](./comparisons.md)
+- [Usage Cases & Full Examples](./usage-cases.md)
 - [Design Decisions](./design-decisions.md)
-- [Usage Cases & Possibilities](./usage-cases.md)
 - [Limitations and Caveats](./limitations.md)
 - [Summary](./conclusion.md)

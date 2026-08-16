@@ -38,6 +38,29 @@ backends at compile time using generic traits.
 - **Deadlock Prevention**: Includes composite locks (like `Nested`) that enforce a fixed acquisition and release order.
 - **Granular Error Handling**: Distinct result types allow your code to differentiate between a busy lock, a successful acquisition, a timeout, and unrecoverable system aborts.
 
+## Batteries Included
+
+While Resync is built on modularity, it ships with an impressive, production-ready arsenal of synchronization primitives and backend policies out of the box:
+
+| Category | Batteries | Description |
+| :--- | :--- | :--- |
+| **Primitives** | `Mutex`, `Sharex` | Standard exclusive and read-write locks with poisoning support. |
+| **Flow Control** | `Gate`, `Barrier`, `Condvar`, `Semaphore` | Controllable barriers, event waiting, and resource pooling. |
+| **Lock Backends** | `Atomic`, `Os`, `Fs`, `Irq` | Pure spinlocks, OS futexes/SRW, file locks, and IRQ-disabling locks. |
+| **Compositors** | `Nested`, `Shield` | Deadlock prevention via strict ordering, and writer-fairness wrappers. |
+| **Retry Strategies** | `Busy`, `Yield` | CPU pause instructions (`spin_loop`) or OS thread yielding. |
+
+## How does it compare?
+
+| Feature | `std::sync` | `parking_lot` | `spin` | **`resync`** |
+| :--- | :---: | :---: | :---: | :---: |
+| **Composable Backends** | - | - | - | + |
+| **`#![no_std]` Native** | - | * (requires features) | + | + |
+| **Granular Errors** | * (Poison only) | - (Panics/Infallible) | - | + (`Lock`, `Retry`, `Poison`) |
+| **Adaptive Retry Policies** | - | - | - | + |
+| **Writer-Fairness (`Shield`)** | - | - | - | + |
+| **TOCTOU-free Initialization** | - | - | - | + (`NewLocked` trait) |
+
 ## Installation
 
 Add Resync to your dependencies:
@@ -57,29 +80,22 @@ resync = { version = "...", default-features = false }
 
 ### Basic Mutex
 
-The `Mutex` primitive is generic over the data it protects (`T`), the lock implementation (`L`), and
-the retry strategy (`R`). By default, it uses an `Atomic` lock and an OS‑yielding retry policy
-(`Yield`), or a busy‑wait (`Busy`) in `no_std`.
-
 ```rust
 use resync::Mutex;
 
 fn main() {
     let mutex = Mutex::<u32>::new(42);
     {
-        // Acquire the lock.
-        // Returns an error if the underlying lock or retry policy reports an unrecoverable issue,
-        // or if the lock was poisoned by a panicking thread.
         let mut guard = mutex.lock().unwrap();
         *guard += 1;
         assert_eq!(*guard, 43);
-    } // Guard is dropped, the lock is automatically released.
+    }
 }
 ```
 
 ### Controlling Thread Flow with `Gate`
 
-A `Gate` acts as a controllable barrier. By default, it starts in the **closed** state, blocking any threads that call `wait()`. This is perfect for initializing a pool of workers that must not start processing until the setup phase is complete.
+A `Gate` acts as a controllable barrier. By default, it starts in the **closed** state, blocking any threads that call `wait()`.
 
 ```rust
 use resync::{Gate, lock::Atomic, retry::Yield};
@@ -102,28 +118,12 @@ gate.open(); // Unblocks all workers simultaneously
 for w in workers { w.join().unwrap(); }
 ```
 
-### Customizing Lock and Retry Strategies
-
-You can swap out the underlying lock and retry implementations at compile time. For example,
-you can force the mutex to use a busy‑wait spin loop instead of yielding to the OS thread scheduler.
-
-```rust
-use resync::Mutex;
-use resync::lock::Atomic;
-use resync::retry::Busy;
-
-// Explicitly define the lock and retry types
-let mutex: Mutex<u32, Atomic, Busy> = Mutex::new(0);
-let guard = mutex.lock().unwrap();
-```
-
 ## Feature Flags
 
-- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`), OS-specific lock backends, `Condvar`, and **Lock Poisoning**. When disabled, the crate becomes `#![no_std]` and the default retry strategy falls back to `retry::Busy` (which issues `core::hint::spin_loop()`). Poisoning overhead is completely eliminated.
-- **`dev`** *(disabled by default)*: Enables internal and unstable API public. It includes internal types and traits and API which is not stabilized yet (like undone or untested primitives and so on).
-- **`fake`** *(disabled by default)*: Enables `Fake` type which implements `LockPolicy`, `SharingPolicy`, `NewLocked` and `RetryPolicy` but doesn't do anything. May be useful for mocks but **DANGEROUS** for use as real traits implementation.
-- **`__lint`** *(disabled by default)*: Development-only feature, **MUST NOT** be enabled on build or when used as a dependency. This feature exists only for tuning `rust-analyzer` for Resync developers.
-
+- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`), OS-specific lock backends, `Condvar`, and **Lock Poisoning**.
+- **`dev`** *(disabled by default)*: Enables internal and unstable API public.
+- **`fake`** *(disabled by default)*: Enables `Fake` type for mocks.
+- **`__lint`** *(disabled by default)*: Development-only feature for `rust-analyzer`.
 
 ## License
 

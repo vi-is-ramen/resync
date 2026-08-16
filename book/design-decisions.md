@@ -65,3 +65,25 @@ Deadlocks often occur when multiple locks are acquired in inconsistent orders ac
 different threads. `lock::Nested` enforces a strict, deterministic acquisition order
 (`L1` then `L2`) and a reverse release order (`L2` then `L1`). This provides a
 compile-time building block for safe multi-resource locking.
+
+## Why `AcquireError` instead of just `PoisonError`?
+Standard library locks return `PoisonError<Guard>`, which conflates poisoning
+with other potential lock failures. Resync separates these concerns using
+`AcquireError` and `TryLockError`. These enums distinguish between:
+- **Poisoned**: A previous thread panicked, and the data might be inconsistent.
+- **Lock**: A fatal, unrecoverable error occurred in the underlying `LockPolicy`
+(e.g., OS resource exhaustion).
+- **Retry**: The `RetryPolicy` aborted the acquisition loop (e.g., due to a
+timeout).
+
+This granular error handling allows `no_std` environments and complex systems
+to react appropriately to timeouts or hardware failures without relying on
+panics.
+
+## Why `Shield` instead of a custom RwLock?
+Writer starvation is a common problem in RwLocks. Instead of hardcoding a
+"writer-preference" mode into the base `Os` or `Atomic` locks (which adds
+overhead to readers who don't need it), Resync provides `Shield`. It acts as a
+transparent wrapper that intercepts `try_lock` and `try_share`, dynamically
+blocking readers only when a writer is actively waiting. This keeps the base
+locks fast and simple while providing a composable solution for fairness.
