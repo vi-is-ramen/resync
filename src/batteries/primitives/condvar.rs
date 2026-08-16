@@ -1,5 +1,4 @@
 #![allow(type_alias_bounds)]
-
 //! A condition variable primitive.
 //!
 //! This module provides the [`Condvar`] struct, which allows threads to wait
@@ -41,7 +40,16 @@ pub struct Condvar
     waiters: Mutex<VecDeque<Thread>, crate::lock::Atomic, crate::retry::Busy>,
 }
 
-/// TODO: documentation
+/// Result type for [`Condvar::wait_timeout`] operations.
+///
+/// Returns a tuple containing the reacquired [`ExGuard`] and a
+/// [`WaitTimeoutResult`] indicating whether the wait timed out.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
+/// panicking thread, or if a fatal lock/retry error occurs during
+/// reacquisition.
 pub type CondvarWaitTimeoutResult<'a, T, L, R, M>
 where
     L: LockPolicy<Meta = M> + Default,
@@ -51,7 +59,16 @@ where
     AcquireError<ExGuard<'a, T, L, M>, L::Error, R::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for [`Condvar::wait`] operations.
+///
+/// Returns the reacquired [`ExGuard`] upon successful wakeup and
+/// reacquisition of the lock.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
+/// panicking thread while this thread was sleeping, or if a fatal
+/// lock/retry error occurs during reacquisition.
 pub type CondvarWaitResult<'a, T, L, R, M>
 where
     L: LockPolicy<Meta = M> + Default,
@@ -193,6 +210,7 @@ impl Condvar
             let mut q = self.waiters.lock().unwrap();
             q.drain(..).collect::<Vec<_>>()
         };
+
         for t in waiters.drain(..)
         {
             t.unpark();

@@ -1,4 +1,5 @@
 //! A shareable-exclusive (read-write) lock primitive.
+
 use crate::traits::{RetryPolicy, SharingPolicy};
 use crate::{
     AcquireError, ExGuard, LockStatus, PoisonError, ShGuard, TryLockError,
@@ -59,17 +60,36 @@ where
     }
 }
 
-/// TODO: documentation
+/// Result type for non-blocking [`Sharex::try_read`] operations.
+///
+/// # Errors
+///
+/// Returns a [`TryLockError`] if the lock is currently held exclusively
+/// by a writer (`Contention`), if an unrecoverable error occurs in the
+/// underlying sharing policy (`Lock`), or if the lock was poisoned
+/// (`Poisoned`).
 pub type SharexTryReadResult<'a, T, L>
 where L: SharingPolicy + Default
 = Result<ShGuard<'a, T, L>, TryLockError<ShGuard<'a, T, L>, L::Error>>;
 
-/// TODO: documentation
+/// Result type for non-blocking [`Sharex::try_write`] operations.
+///
+/// # Errors
+///
+/// Returns a [`TryLockError`] if the lock is currently held by any reader
+/// or writer (`Contention`), if an unrecoverable error occurs, or if the
+/// lock was poisoned.
 pub type SharexTryWriteResult<'a, T, L>
 where L: SharingPolicy + Default
 = Result<ExGuard<'a, T, L>, TryLockError<ExGuard<'a, T, L>, L::Error>>;
 
-/// TODO: documentation
+/// Result type for blocking [`Sharex::read`] operations.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
+/// error occurs in the underlying sharing policy, or if the retry policy
+/// aborts the acquisition loop.
 pub type SharexReadResult<'a, T, L, R>
 where
     L: SharingPolicy + Default,
@@ -79,7 +99,12 @@ where
     AcquireError<ShGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for blocking [`Sharex::write`] operations.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
+/// error occurs, or if the retry policy aborts.
 pub type SharexWriteResult<'a, T, L, R>
 where
     L: SharingPolicy + Default,
@@ -89,7 +114,13 @@ where
     AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for blocking [`Sharex::exchange`] and [`Sharex::take`]
+/// operations.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
+/// lock error occurs, or if the retry policy aborts.
 pub type SharexExchangeResult<'a, T, L, R>
 where
     L: SharingPolicy + Default,

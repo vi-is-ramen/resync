@@ -1,4 +1,5 @@
 //! A mutual exclusion primitive that composes a lock policy and a retry policy.
+
 use super::ExGuard;
 use crate::traits::{LockPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError, TryLockError};
@@ -132,7 +133,14 @@ where
     }
 }
 
-/// TODO: documentation
+/// Result type for non-blocking [`Mutex::try_lock`] operations.
+///
+/// # Errors
+///
+/// Returns a [`TryLockError`] if the lock is currently held by another
+/// thread (`Contention`), if an unrecoverable error occurs in the
+/// underlying lock policy (`Lock`), or if the lock was poisoned by a
+/// panicking thread (`Poisoned`).
 pub type MutexTryLockResult<'a, T, L>
 where L: LockPolicy + Default
 = Result<
@@ -140,27 +148,45 @@ where L: LockPolicy + Default
     TryLockError<ExGuard<'a, T, L, L::Meta>, L::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for blocking [`Mutex::lock`] operations.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the lock was poisoned by a panicking
+/// thread, if an unrecoverable error occurs in the underlying lock policy,
+/// or if the retry policy aborts the acquisition loop (e.g., due to a
+/// timeout).
 pub type MutexLockResult<'a, T, L, R>
 where
     L: LockPolicy + Default,
-    R: LockPolicy + Default,
+    R: RetryPolicy + Default,
 = Result<
     ExGuard<'a, T, L>,
     AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for blocking [`Mutex::exchange`] and [`Mutex::take`] operations.
+///
+/// # Errors
+///
+/// Returns an [`AcquireError`] if the lock was poisoned, if an unrecoverable
+/// lock error occurs, or if the retry policy aborts.
 pub type MutexExchangeResult<'a, T, L, R>
 where
     L: LockPolicy + Default,
-    R: LockPolicy + Default,
+    R: RetryPolicy + Default,
 = Result<
     T,
     AcquireError<ExGuard<'a, T, L>, L::Error, <R as RetryPolicy>::Error>,
 >;
 
-/// TODO: documentation
+/// Result type for non-blocking [`Mutex::try_exchange`] and [`Mutex::try_take`]
+/// operations.
+///
+/// # Errors
+///
+/// Returns a [`TryLockError`] if the lock is currently held, if an
+/// unrecoverable lock error occurs, or if the lock is poisoned.
 pub type MutexTryExchangeResult<'a, T, L>
 where L: LockPolicy + Default
 = Result<T, TryLockError<ExGuard<'a, T, L, L::Meta>, L::Error>>;

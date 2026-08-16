@@ -51,3 +51,6 @@ pub use batteries::*;
 
 mod result;
 pub use result::*;
+
+/// NOT IMPLEMENTED
+pub mod api;
