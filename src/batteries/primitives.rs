@@ -9,6 +9,8 @@ mod exguard;
 #[cfg(dev)]
 mod gate;
 mod mutex;
+#[cfg(dev)]
+mod sem;
 mod sharex;
 mod shguard;
 
@@ -20,5 +22,7 @@ pub use exguard::*;
 #[cfg(dev)]
 pub use gate::*;
 pub use mutex::*;
+#[cfg(dev)]
+pub use sem::*;
 pub use sharex::*;
 pub use shguard::*;
