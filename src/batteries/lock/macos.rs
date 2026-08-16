@@ -14,8 +14,7 @@
 //! via `pthread_rwlock_*` functions. This makes it simpler but potentially
 //! slightly slower for uncontended locks compared to a pure user-space atomic
 //! lock.
-
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
 /// A macOS `pthread_rwlock_t`-based lock and read-write lock implementation.
@@ -86,7 +85,6 @@ unsafe impl Sync for Os {}
 unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
-
     type Meta = ();
 
     /// Attempts to acquire the lock for exclusive (writer) access.
@@ -133,19 +131,23 @@ unsafe impl LockPolicy for Os
     /// This is a no-op because `pthread_rwlock_t` handles thread waking
     /// automatically upon release.
     fn wake_all(&self) {}
+}
 
+impl NewLocked for Os
+{
+    /// Creates a new `Os` lock and immediately acquires it for exclusive
+    /// (writer) access using a blocking `pthread_rwlock_wrlock` call.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying `pthread_rwlock_init` or
+    /// `pthread_rwlock_wrlock` calls fail.
     fn new_locked() -> (Self::Meta, Self)
     {
-        let rv = Self::default();
-
-        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
-        {
-            (meta, rv)
-        }
-        else
-        {
-            unreachable!()
-        }
+        let s = Self::new();
+        let result = unsafe { libc::pthread_rwlock_wrlock(s.rwlock.get()) };
+        assert_eq!(result, 0, "pthread_rwlock_wrlock failed in new_locked");
+        ((), s)
     }
 }
 

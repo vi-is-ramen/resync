@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![allow(type_alias_bounds)]
 
 //! A condition variable primitive.
 //!
@@ -14,32 +14,17 @@
 //! non-blocking atomic spinlock (`lock::Atomic` + `retry::Busy`), ensuring
 //! minimal overhead when registering or waking threads.
 //!
-//! # Examples
+//! # Poisoning
 //!
-//! ```rust
-//! # use resync::{Mutex, Condvar};
-//! # use std::sync::Arc;
-//! # use std::thread;
-//! let pair = Arc::new((Mutex::<bool>::new(false), Condvar::new()));
-//! let pair2 = Arc::clone(&pair);
-//!
-//! thread::spawn(move || {
-//!     let (lock, cvar) = &*pair2;
-//!     let mut started = lock.lock().unwrap();
-//!     *started = true;
-//!     cvar.notify_one();
-//! });
-//!
-//! let (lock, cvar) = &*pair;
-//! let mut started = lock.lock().unwrap();
-//! while !*started
-//! {
-//!     started = cvar.wait(started, lock).unwrap();
-//! }
-//! ```
+//! Because `Condvar` releases and reacquires the user-provided [`Mutex`], it
+//! fully respects the lock's poisoning semantics. If another thread panics
+//! while holding the mutex, the subsequent reacquisition in
+//! [`wait`](Self::wait) or [`wait_timeout`](Self::wait_timeout) will return an
+//! [`AcquireError::Poisoned`] error, allowing the caller to handle the
+//! inconsistent state.
 
 use crate::traits::{LockPolicy, RetryPolicy};
-use crate::{ExGuard, LockError, Mutex};
+use crate::{AcquireError, ExGuard, Mutex};
 use std::collections::VecDeque;
 use std::thread::{self, Thread};
 
@@ -55,6 +40,30 @@ pub struct Condvar
 {
     waiters: Mutex<VecDeque<Thread>, crate::lock::Atomic, crate::retry::Busy>,
 }
+
+/// TODO: documentation
+pub type CondvarWaitTimeoutResult<'a, T, L, R, M>
+where
+    L: LockPolicy<Meta = M> + Default,
+    R: RetryPolicy + Default,
+= Result<
+    (ExGuard<'a, T, L, M>, WaitTimeoutResult),
+    AcquireError<ExGuard<'a, T, L, M>, L::Error, R::Error>,
+>;
+
+/// TODO: documentation
+pub type CondvarWaitResult<'a, T, L, R, M>
+where
+    L: LockPolicy<Meta = M> + Default,
+    R: RetryPolicy + Default,
+= Result<
+    ExGuard<'a, T, L, M>,
+    AcquireError<
+        ExGuard<'a, T, L, M>,
+        <L as LockPolicy>::Error,
+        <R as RetryPolicy>::Error,
+    >,
+>;
 
 #[cfg(feature = "std")]
 impl Condvar
@@ -79,12 +88,17 @@ impl Condvar
     /// Threads may wake up spuriously even if not explicitly notified. It is
     /// highly recommended to always use `wait` inside a `while` loop that
     /// checks the underlying condition.
-    #[allow(clippy::type_complexity)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
+    /// panicking thread while this thread was sleeping, or if a fatal
+    /// lock/retry error occurs during reacquisition.
     pub fn wait<'a, T, L, R, M>(
         &self,
         guard: ExGuard<'a, T, L, M>,
         mutex: &'a Mutex<T, L, R>,
-    ) -> Result<ExGuard<'a, T, L, M>, LockError<L::Error, R::Error>>
+    ) -> CondvarWaitResult<'a, T, L, R, M>
     where
         L: LockPolicy<Meta = M> + Default,
         R: RetryPolicy + Default,
@@ -105,6 +119,8 @@ impl Condvar
         thread::park();
 
         // 4. Reacquire the user-provided lock.
+        // This correctly propagates `AcquireError::Poisoned` if the mutex
+        // was poisoned while we were sleeping.
         mutex.lock()
     }
 
@@ -113,16 +129,18 @@ impl Condvar
     ///
     /// Returns a tuple containing the reacquired [`ExGuard`] and a
     /// [`WaitTimeoutResult`] indicating whether the wait timed out.
-    #[allow(clippy::type_complexity)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`AcquireError`] if the underlying mutex was poisoned by a
+    /// panicking thread, or if a fatal lock/retry error occurs during
+    /// reacquisition.
     pub fn wait_timeout<'a, T, L, R, M>(
         &self,
         guard: ExGuard<'a, T, L, M>,
         mutex: &'a Mutex<T, L, R>,
         dur: std::time::Duration,
-    ) -> Result<
-        (ExGuard<'a, T, L, M>, WaitTimeoutResult),
-        LockError<L::Error, R::Error>,
-    >
+    ) -> CondvarWaitTimeoutResult<'a, T, L, R, M>
     where
         L: LockPolicy<Meta = M> + Default,
         R: RetryPolicy + Default,

@@ -5,9 +5,8 @@
 //! the lock and never blocks or yields, making it useful for unit testing
 //! higher-level primitives without dealing with actual concurrency or
 //! contention.
-
 use crate::RetryResult;
-use crate::traits::{LockPolicy, RetryPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, RetryPolicy, SharingPolicy};
 
 /// A fake lock and retry policy that always succeeds.
 ///
@@ -40,7 +39,6 @@ unsafe impl core::marker::Sync for Fake {}
 unsafe impl LockPolicy for Fake
 {
     type Error = FakeError;
-
     type Meta = ();
 
     /// Always succeeds in acquiring the exclusive lock.
@@ -57,7 +55,15 @@ unsafe impl LockPolicy for Fake
 
     /// No-op wake operation.
     fn wake_all(&self) {}
+}
 
+impl NewLocked for Fake
+{
+    /// Creates a new `Fake` lock.
+    ///
+    /// Since `Fake` always succeeds on `try_lock`, this is functionally
+    /// identical to `Fake::default()`. It exists to satisfy the `NewLocked`
+    /// trait bound in testing scenarios.
     fn new_locked() -> (Self::Meta, Self)
     {
         ((), Self)

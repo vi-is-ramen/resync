@@ -17,18 +17,20 @@
 //! (reader) access while minimizing system call overhead. Threads only enter
 //! the kernel via `futex_wait` when they fail to acquire the lock after a
 //! certain number of spin iterations (`DEFAULT_EPSILON`).
-
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 /// The number of fast-path iterations before falling back to the kernel futex.
 const DEFAULT_EPSILON: usize = 10000;
+
 /// Bitmask indicating that the lock is held exclusively by a writer.
 const WRITER: u32 = 1 << 31;
+
 /// Bitmask indicating that there are threads waiting (parked) on the lock.
 const WAITERS: u32 = 1 << 30;
+
 /// Bitmask for extracting the reader count from the lock state.
 const READERS_MASK: u32 = !(WRITER | WAITERS);
 
@@ -66,7 +68,6 @@ impl Os
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
-
             if state == 0
             {
                 if self
@@ -83,13 +84,11 @@ impl Os
                 }
                 continue;
             }
-
             if state & WAITERS != 0
             {
                 futex_wait(&self.0, state);
                 continue;
             }
-
             if self
                 .0
                 .compare_exchange_weak(
@@ -115,7 +114,6 @@ impl Os
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
-
             if state & WRITER != 0
             {
                 if state & WAITERS != 0
@@ -136,13 +134,11 @@ impl Os
                 }
                 continue;
             }
-
             if state & WAITERS != 0
             {
                 futex_wait(&self.0, state);
                 continue;
             }
-
             if self
                 .0
                 .compare_exchange_weak(
@@ -217,7 +213,16 @@ unsafe impl LockPolicy for Os
             futex_wake(&self.0, i32::MAX);
         }
     }
+}
 
+impl NewLocked for Os
+{
+    /// Creates a new `Os` lock that is already acquired for exclusive access.
+    ///
+    /// The underlying atomic state is initialized with the `WRITER` flag set.
+    /// Note that since this bypasses the fast-path CAS, no `WAITERS` flag is
+    /// set initially. Any subsequent `try_lock` calls from other threads will
+    /// observe the `WRITER` flag and proceed to the slow path (futex parking).
     fn new_locked() -> (Self::Meta, Self)
     {
         ((), Self(AtomicU32::new(WRITER)))

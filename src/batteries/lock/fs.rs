@@ -3,13 +3,12 @@
 //! This lock is useful for synchronising access to resources across processes
 //! or for using a file as a coordination point. It uses an advisory lock on
 //! an open file descriptor.
-
 use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 
-use crate::traits::LockPolicy;
+use crate::traits::{LockPolicy, NewLocked};
 use crate::{LockResult, LockStatus};
 
 /// A lock policy that uses `flock` on a file.
@@ -52,8 +51,10 @@ impl Fs
             .truncate(false)
             .open(path.as_ref())?;
         let fd = file.as_raw_fd();
+
         // Forget the `File` so we keep the fd alive.
         std::mem::forget(file);
+
         Ok(Self {
             fd,
             path: path.as_ref().to_path_buf(),
@@ -92,7 +93,6 @@ unsafe impl Sync for Fs {}
 unsafe impl LockPolicy for Fs
 {
     type Error = io::Error;
-
     type Meta = ();
 
     unsafe fn try_lock(
@@ -102,6 +102,7 @@ unsafe impl LockPolicy for Fs
     {
         let ret =
             unsafe { libc::flock(self.fd, libc::LOCK_EX | libc::LOCK_NB) };
+
         if ret == 0
         {
             Ok(LockStatus::Done(()))
@@ -124,9 +125,23 @@ unsafe impl LockPolicy for Fs
     {
         let _ = unsafe { libc::flock(self.fd, libc::LOCK_UN) };
     }
+}
 
+impl NewLocked for Fs
+{
+    /// Creates a new `Fs` lock and immediately acquires an exclusive lock on
+    /// the underlying file descriptor using a blocking `flock(2)` call.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default lock file cannot be opened or if the blocking
+    /// `flock` call fails for reasons other than contention.
     fn new_locked() -> (Self::Meta, Self)
     {
-        todo!()
+        let s = Self::default();
+        // Block until we acquire the lock.
+        let ret = unsafe { libc::flock(s.fd, libc::LOCK_EX) };
+        assert_eq!(ret, 0, "failed to acquire flock in new_locked");
+        ((), s)
     }
 }

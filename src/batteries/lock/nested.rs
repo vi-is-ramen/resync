@@ -27,8 +27,7 @@
 //! // Releases L2, then L1
 //! unsafe { lock.free(&((), ())) };
 //! ```
-
-use crate::traits::LockPolicy;
+use crate::traits::{LockPolicy, NewLocked};
 use crate::{LockResult, LockStatus};
 
 /// A lock composed of two inner locks.
@@ -120,8 +119,8 @@ where
 
 unsafe impl<L1, L2> LockPolicy for Nested<L1, L2>
 where
-    L1: LockPolicy + Default,
-    L2: LockPolicy + Default,
+    L1: LockPolicy,
+    L2: LockPolicy,
 {
     type Error =
         NestedError<<L1 as LockPolicy>::Error, <L2 as LockPolicy>::Error>;
@@ -151,7 +150,6 @@ where
         };
 
         let l2 = unsafe { self.l2.try_lock(current_iteration) };
-
         match l2
         {
             Ok(LockStatus::Done(meta)) =>
@@ -190,18 +188,21 @@ where
         self.l1.wake_all();
         self.l2.wake_all();
     }
+}
 
+impl<L1, L2> NewLocked for Nested<L1, L2>
+where
+    L1: NewLocked,
+    L2: NewLocked,
+{
+    /// Creates a new [`Nested`] lock with both inner locks already acquired.
+    ///
+    /// `L1` is acquired first, followed by `L2`, maintaining the strict
+    /// deterministic order enforced by this primitive.
     fn new_locked() -> (Self::Meta, Self)
     {
-        let rv = Self::default();
-
-        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
-        {
-            (meta, rv)
-        }
-        else
-        {
-            unreachable!()
-        }
+        let (m1, l1) = L1::new_locked();
+        let (m2, l2) = L2::new_locked();
+        ((m1, m2), Self { l1, l2 })
     }
 }

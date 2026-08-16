@@ -11,8 +11,7 @@
 //! receives [`crate::LockStatus::Fail`], forcing it to yield via its retry
 //! policy. This gives the waiting writer a fair chance to acquire the lock
 //! once the current readers release it.
-
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A sharing-yielding (shield) lock wrapper.
@@ -158,15 +157,19 @@ where L: LockPolicy
     {
         self.inner.wake_all()
     }
+}
 
+impl<L> NewLocked for Shield<L>
+where L: NewLocked + LockPolicy
+{
+    /// Creates a new [`Shield`] wrapper with the inner lock already acquired.
     fn new_locked() -> (Self::Meta, Self)
     {
-        let (meta, l) = L::new_locked();
-
+        let (meta, inner) = L::new_locked();
         (
             meta,
             Self {
-                inner:   l,
+                inner,
                 pending: AtomicUsize::new(0),
             },
         )

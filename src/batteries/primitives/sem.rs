@@ -14,7 +14,7 @@
 //! environments when paired with `lock::Atomic` and `retry::Busy`.
 
 use crate::traits::{LockPolicy, RetryPolicy};
-use crate::{LockError, LockStatus, TryLockError};
+use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 
 /// A counting semaphore that limits concurrent access to a pool of resources.
@@ -108,7 +108,7 @@ where
     /// Acquires a single permit from the semaphore.
     ///
     /// This method blocks the current thread until a permit is available.
-    pub fn acquire(&self) -> Result<(), LockError<L::Error, R::Error>>
+    pub fn acquire(&self) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         self.acquire_many(1)
     }
@@ -120,7 +120,7 @@ where
     pub fn acquire_many(
         &self,
         n: usize,
-    ) -> Result<(), LockError<L::Error, R::Error>>
+    ) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -143,7 +143,7 @@ where
                         unsafe { self.lock.free(&meta) };
                         if let Err(e) = self.retry.retry(iterations)
                         {
-                            return Err(LockError::Retry(e));
+                            return Err(AcquireError::Retry(e));
                         }
                     }
                 },
@@ -151,16 +151,16 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(LockError::Retry(e));
+                        return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(LockError::Lock(e)),
+                Err(e) => return Err(AcquireError::Lock(e)),
             }
         }
     }
 
     /// Attempts to acquire a single permit without blocking.
-    pub fn try_acquire(&self) -> Result<(), TryLockError<L::Error>>
+    pub fn try_acquire(&self) -> Result<(), TryLockError<(), L::Error>>
     {
         self.try_acquire_many(1)
     }
@@ -169,7 +169,7 @@ where
     pub fn try_acquire_many(
         &self,
         n: usize,
-    ) -> Result<(), TryLockError<L::Error>>
+    ) -> Result<(), TryLockError<(), L::Error>>
     {
         match unsafe { self.lock.try_lock(0) }
         {
@@ -194,7 +194,7 @@ where
     }
 
     /// Releases a single permit back to the semaphore.
-    pub fn release(&self) -> Result<(), LockError<L::Error, R::Error>>
+    pub fn release(&self) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         self.release_many(1)
     }
@@ -203,7 +203,7 @@ where
     pub fn release_many(
         &self,
         n: usize,
-    ) -> Result<(), LockError<L::Error, R::Error>>
+    ) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -226,10 +226,10 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(LockError::Retry(e));
+                        return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(LockError::Lock(e)),
+                Err(e) => return Err(AcquireError::Lock(e)),
             }
         }
     }
@@ -240,7 +240,7 @@ where
     /// so it may block if the lock is highly contended.
     pub fn available_permits(
         &self,
-    ) -> Result<usize, LockError<L::Error, R::Error>>
+    ) -> Result<usize, AcquireError<(), L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -258,10 +258,10 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(LockError::Retry(e));
+                        return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(LockError::Lock(e)),
+                Err(e) => return Err(AcquireError::Lock(e)),
             }
         }
     }

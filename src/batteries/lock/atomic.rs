@@ -15,8 +15,7 @@
 //! Because it relies purely on atomic instructions, it is highly portable but
 //! does not support thread parking. Threads waiting for the lock must rely on
 //! a OS-driven lock.
-
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -114,7 +113,12 @@ unsafe impl LockPolicy for Atomic
     {
         self.0.store(0, Ordering::Release);
     }
+}
 
+impl NewLocked for Atomic
+{
+    /// Creates a new `Atomic` lock that is already acquired for exclusive
+    /// access.
     fn new_locked() -> (Self::Meta, Self)
     {
         ((), Self(AtomicUsize::new(WRITER)))
@@ -142,12 +146,10 @@ unsafe impl SharingPolicy for Atomic
         loop
         {
             let state = self.0.load(Ordering::Relaxed);
-
             if state == WRITER
             {
                 return Ok(LockStatus::Fail);
             }
-
             if self
                 .0
                 .compare_exchange_weak(

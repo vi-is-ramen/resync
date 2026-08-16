@@ -1,4 +1,4 @@
-//! A gate synchronization primitive.
+//! A gate or valve synchronization primitive.
 //!
 //! This module provides the [`Gate`] struct, which acts as a controllable
 //! barrier for multiple threads. It leverages a [`SharingPolicy`] to implement
@@ -8,25 +8,22 @@
 //! - **Open**: The underlying lock is free. Threads calling
 //!   [`wait`](Self::wait) can pass through concurrently by acquiring and
 //!   immediately releasing a shared (Reader) lock.
+//!
+//! By default, a newly created `Gate` is in the **closed** state to prevent
+//! threads from passing through before the barrier is explicitly opened.
 
-use crate::traits::{RetryPolicy, SharingPolicy};
-use crate::{LockError, LockStatus, TryLockError};
+use crate::traits::{NewLocked, RetryPolicy, SharingPolicy};
+use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
-/// A synchronization primitive that acts as a controllable gate.
+/// A synchronization primitive that acts as a controllable gate or valve.
 ///
 /// A `Gate` can be in one of two states:
 /// - **Open**: Threads calling [`wait`](Self::wait) or
 ///   [`try_wait`](Self::try_wait) will pass through immediately.
 /// - **Closed**: Threads calling [`wait`](Self::wait) will block until the gate
 ///   is opened. [`try_wait`](Self::try_wait) will return an error.
-///
-/// # Design
-///
-/// Unlike a [`Mutex`](crate::Mutex) which protects data, a `Gate` protects
-/// the *flow of execution*. It uses the underlying [`SharingPolicy`] directly
-/// to manage its state without allocating unnecessary RAII guards.
 ///
 /// # Examples
 ///
@@ -35,10 +32,8 @@ use core::sync::atomic::{AtomicBool, Ordering};
 /// # use std::sync::Arc;
 /// # use std::thread;
 /// # use std::time::Duration;
+/// // Created in the closed state by default
 /// let gate = Arc::new(Gate::<Atomic, Yield>::new());
-///
-/// // Close the gate initially
-/// gate.close().unwrap();
 ///
 /// let g2 = Arc::clone(&gate);
 /// let handle = thread::spawn(move || {
@@ -67,17 +62,6 @@ where
     is_closed: AtomicBool,
 }
 
-impl<L, R> core::fmt::Debug for Gate<L, R>
-where
-    L: SharingPolicy,
-    R: RetryPolicy,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-    {
-        f.write_str("Gate { ... }")
-    }
-}
-
 // SAFETY:
 // The gate manages synchronization state. It is safe to send across threads
 // if the underlying policies and metadata are Send.
@@ -101,19 +85,46 @@ where
 {
 }
 
+impl<L, R> core::fmt::Debug for Gate<L, R>
+where
+    L: SharingPolicy,
+    R: RetryPolicy,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    {
+        f.write_str("Gate { ... }")
+    }
+}
+
+impl<L, R> Gate<L, R>
+where
+    L: SharingPolicy + NewLocked,
+    R: RetryPolicy + Default,
+{
+    /// Creates a new `Gate` in the **closed** (locked) state.
+    ///
+    /// Threads calling [`wait`](Self::wait) on a newly created gate will
+    /// block until [`open`](Self::open) is called.
+    pub fn new() -> Self
+    {
+        let (meta, inner) = L::new_locked();
+        Self {
+            inner,
+            retry: R::default(),
+            meta: UnsafeCell::new(Some(meta)),
+            is_closed: AtomicBool::new(true),
+        }
+    }
+}
+
 impl<L, R> core::default::Default for Gate<L, R>
 where
-    L: SharingPolicy + Default,
+    L: SharingPolicy + NewLocked,
     R: RetryPolicy + Default,
 {
     fn default() -> Self
     {
-        Self {
-            inner:     L::default(),
-            retry:     R::default(),
-            meta:      UnsafeCell::new(None),
-            is_closed: AtomicBool::new(false),
-        }
+        Self::new()
     }
 }
 
@@ -122,27 +133,16 @@ where
     L: SharingPolicy + Default,
     R: RetryPolicy + Default,
 {
-    /// Creates a new `Gate` in the **open** state.
+    /// Creates a new `Gate` in the **open** (unlocked) state.
     ///
     /// Threads calling [`wait`](Self::wait) on a newly created gate will
     /// pass through immediately. Call [`close`](Self::close) to start
     /// blocking incoming threads.
-    pub fn new() -> Self
-    {
-        Self::default()
-    }
-}
-
-impl<L, R> From<(L, R)> for Gate<L, R>
-where
-    L: SharingPolicy,
-    R: RetryPolicy,
-{
-    fn from(value: (L, R)) -> Self
+    pub fn new_open() -> Self
     {
         Self {
-            inner:     value.0,
-            retry:     value.1,
+            inner:     L::default(),
+            retry:     R::default(),
             meta:      UnsafeCell::new(None),
             is_closed: AtomicBool::new(false),
         }
@@ -161,7 +161,7 @@ where
     /// is called.
     ///
     /// If the gate is already closed, this method returns immediately.
-    pub fn close(&self) -> Result<(), LockError<L::Error, R::Error>>
+    pub fn close(&self) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         if self.is_closed.load(Ordering::Acquire)
         {
@@ -189,10 +189,10 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(LockError::Retry(e));
+                        return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(LockError::Lock(e)),
+                Err(e) => return Err(AcquireError::Lock(e)),
             }
         }
     }
@@ -230,7 +230,7 @@ where
     ///
     /// Once the gate is open, this method acquires a shared (Reader) lock
     /// and immediately releases it, allowing the thread to pass through.
-    pub fn wait(&self) -> Result<(), LockError<L::Error, R::Error>>
+    pub fn wait(&self) -> Result<(), AcquireError<(), L::Error, R::Error>>
     {
         let mut iterations = 0usize;
         loop
@@ -249,10 +249,10 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
-                        return Err(LockError::Retry(e));
+                        return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(LockError::Lock(e)),
+                Err(e) => return Err(AcquireError::Lock(e)),
             }
         }
     }
@@ -262,7 +262,7 @@ where
     /// If the gate is closed, this method returns
     /// `Err(TryLockError::Contention)`. If the gate is open, it acquires
     /// and immediately releases a shared lock, returning `Ok(())`.
-    pub fn try_wait(&self) -> Result<(), TryLockError<L::Error>>
+    pub fn try_wait(&self) -> Result<(), TryLockError<(), L::Error>>
     {
         match self.inner.try_share(0)
         {

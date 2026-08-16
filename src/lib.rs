@@ -38,6 +38,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]
+#![allow(type_alias_bounds)]
 
 extern crate libc;
 

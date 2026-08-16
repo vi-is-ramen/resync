@@ -265,20 +265,6 @@ unsafe impl LockPolicy for Irq
             enable_irq();
         }
     }
-
-    fn new_locked() -> (Self::Meta, Self)
-    {
-        let rv = Self;
-
-        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
-        {
-            (meta, rv)
-        }
-        else
-        {
-            unreachable!()
-        }
-    }
 }
 
 /// A composite lock policy that wraps a [`SharingPolicy`] and disables
@@ -342,20 +328,6 @@ where L: SharingPolicy + Default
         if meta.0
         {
             enable_irq();
-        }
-    }
-
-    fn new_locked() -> (Self::Meta, Self)
-    {
-        let rv = Self::default();
-
-        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
-        {
-            (meta, rv)
-        }
-        else
-        {
-            unreachable!()
         }
     }
 }

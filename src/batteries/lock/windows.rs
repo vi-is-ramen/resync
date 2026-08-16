@@ -11,8 +11,7 @@
 //! initialization or destruction, making it very lightweight in terms of memory
 //! and lifecycle management. It also handles thread parking and waking
 //! automatically within the Windows kernel.
-
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
 /// A Windows SRW lock-based implementation of a read-write lock.
@@ -57,7 +56,6 @@ unsafe impl Sync for Os {}
 unsafe impl LockPolicy for Os
 {
     type Error = core::convert::Infallible;
-
     type Meta = ();
 
     /// Attempts to acquire the lock for exclusive (writer) access.
@@ -108,19 +106,21 @@ unsafe impl LockPolicy for Os
     ///
     /// This is a no-op because `SRWLOCK` handles thread waking automatically.
     fn wake_all(&self) {}
+}
 
+impl NewLocked for Os
+{
+    /// Creates a new `Os` lock and immediately acquires it for exclusive
+    /// (writer) access using a blocking `AcquireSRWLockExclusive` call.
     fn new_locked() -> (Self::Meta, Self)
     {
-        let rv = Self::default();
-
-        if let Ok(LockStatus::Done(meta)) = unsafe { rv.try_lock(0) }
-        {
-            (meta, rv)
+        let s = Self::new();
+        unsafe {
+            windows_sys::Win32::System::Threading::AcquireSRWLockExclusive(
+                &s.srwlock as *const _ as *mut _,
+            );
         }
-        else
-        {
-            unreachable!()
-        }
+        ((), s)
     }
 }
 
