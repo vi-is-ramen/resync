@@ -57,7 +57,6 @@ pub struct Once<
 // immutable access afterwards. It is safe to share across threads.
 unsafe impl<T, L, R, P> core::marker::Sync for Once<T, L, R, P>
 where
-    T: Send + Sync,
     L: LockPolicy + core::marker::Sync,
     R: RetryPolicy + core::marker::Sync,
     P: PoisonPolicy + core::marker::Sync,

@@ -15,6 +15,7 @@ pub(crate) mod condvar;
 pub(crate) mod exguard;
 #[cfg(dev)]
 pub(crate) mod gate;
+pub(crate) mod lazy;
 pub(crate) mod mutex;
 pub(crate) mod once;
 #[cfg(dev)]
@@ -29,6 +30,7 @@ pub use condvar::*;
 pub use exguard::*;
 #[cfg(dev)]
 pub use gate::*;
+pub use lazy::*;
 pub use mutex::*;
 pub use once::*;
 #[cfg(dev)]
