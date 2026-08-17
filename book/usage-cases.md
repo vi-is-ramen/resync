@@ -119,3 +119,35 @@ match mutex.lock() {
     }
 }
 ```
+
+## Case E: Lazy Initialization with `Once`
+
+When you need to initialize a global or static resource exactly once on first use, `Once` provides a thread-safe, lock-free fast path for subsequent accesses.
+
+```rust
+use resync::Once;
+use std::sync::Arc;
+use std::thread;
+
+struct DatabaseConnection { /* ... */ }
+
+static DB: Once<DatabaseConnection> = Once::new();
+
+fn main() {
+    let handles: Vec<_> = (0..10).map(|_| {
+        thread::spawn(|| {
+            // The first thread to reach this point will execute the closure.
+            // All other threads will wait (using the RetryPolicy) and then
+            // receive a reference to the initialized value.
+            let conn = DB.init(|| {
+                println!("Initializing DB connection...");
+                DatabaseConnection { /* ... */ }
+            }).unwrap();
+            
+            // Use `conn` safely...
+        })
+    }).collect();
+
+    for h in handles { h.join().unwrap(); }
+}
+```

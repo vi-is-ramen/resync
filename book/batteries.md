@@ -20,6 +20,10 @@ to a pool of resources (e.g., DB connections).
 the poisoning semantics of the associated `Mutex`.
 - **`Barrier<R>`**: A synchronization primitive that blocks a set of threads
 until all of them have reached a certain point.
+- **`Once<T, L, R, P>`**: A primitive for one-time lazy initialization (similar
+to `std::sync::OnceLock`). It uses a fast-path atomic check and falls back to the
+`LockPolicy` only during the initialization phase. Fully respects lock poisoning
+if the initialization closure panics.
 
 ## Lock Backends (`LockPolicy` & `SharingPolicy`)
 

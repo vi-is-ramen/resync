@@ -16,13 +16,12 @@
 //! - **[`traits::NewLocked`]**: Allows locks to be initialized in an already
 //!   acquired state, preventing TOCTOU races in primitives like [`Gate`].
 //! - **[`traits::PoisonPolicy`]**: Defines how a lock reacts to thread panics.
-//!   Use [`poison::NoPoison`] for zero-overhead critical sections, or implement
-//!   your own for custom `no_std` unwinding environments.
 //! - **[`Mutex`]** / **[`Sharex`]**: High-level primitives that compose
 //!   policies to protect data.
 //! - **[`Gate`]**: A controllable barrier that blocks thread flow until opened.
 //! - **[`Semaphore`]**: A counting semaphore for resource pooling.
 //! - **[`Condvar`]**: A condition variable for event-based waiting.
+//! - **[`Once`]**: A primitive for safe, one-time lazy initialization.
 //!
 //! # Features
 //!
