@@ -1,4 +1,5 @@
 # Resync
+
 [![Crates.io](https://img.shields.io/crates/v/resync.svg)](https://crates.io/crates/resync)
 [![Documentation](https://docs.rs/resync/badge.svg)](https://docs.rs/resync)
 [![License](https://img.shields.io/crates/l/resync.svg)](#license)
@@ -6,41 +7,57 @@
 
 > **HELP WANTED**
 >
-> Every day, I conduct research and develop prototypes for libraries, utilities, and other developer
-> tools — investing a great deal of time without any financial return. All my projects are driven purely
-> by enthusiasm and willpower. I need help developing the ecosystem — specifically the Resync crate —
-> and would be very grateful for issues, patches, spreading the word, or any other form of contribution.
+> Every day, I conduct research and develop prototypes for libraries, utilities,
+> and other developer tools — investing a great deal of time without any
+> financial return. All my projects are driven purely by enthusiasm and
+> willpower. I need help developing the ecosystem — specifically the Resync
+> crate - and would be very grateful for issues, patches, spreading the word, or
+> any other form of contribution.
 
 > **ATTENTION**
 >
-> Resync's types are not compatible with `lock_api`'s traits. The mental models and architectures of
-> Resync and `lock_api` are fundamentally incompatible. Until Rust's `const_traits` and
-> `const_trait_impl` are stabilized and `lock_api` adopts a compatible model, we are not compatible.
+> Resync's types are not compatible with `lock_api`'s traits. The mental models
+> and architectures of Resync and `lock_api` are fundamentally incompatible.
+> Until Rust's `const_traits` and `const_trait_impl` are stabilized and
+> `lock_api` adopts a compatible model, we are not compatible.
 
 > **GUIDEBOOK**
 >
 > For a comprehensive, interactive guide on the library's philosophy, design
-> decisions, and advanced usage patterns, please visit the **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
+> decisions, and advanced usage patterns, please visit the
+> **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
 
 A LEGO-like library of synchronization primitives for Rust.
 
-Resync provides composable building blocks for implementing locks and spin loops. Instead of a
-one-size-fits-all mutex, Resync allows you to mix and match lock acquisition strategies and retry
-backends at compile time using generic traits.
+Resync provides composable building blocks for implementing locks and spin loops.
+Instead of a one-size-fits-all mutex, Resync allows you to mix and match lock
+acquisition strategies and retry backends at compile time using generic traits.
 
 ## Features
 
-- **Composable Primitives**: Decouple lock acquisition (`LockPolicy`) from retry/waiting strategies (`RetryPolicy`).
-- **Advanced Synchronization**: Includes `Gate` (controllable barriers), `Semaphore` (resource pooling), and `Condvar` (condition variables).
-- **Lock Poisoning**: Automatically detects panics inside critical sections (when `std` is enabled) and marks locks as poisoned, protecting data integrity with granular error types (`AcquireError`, `TryLockError`).
-- **`no_std` Support**: Fully compatible with `#![no_std]` environments by disabling the default `std` feature.
-- **Nightly Rust Optimizations**: Automatically leverages nightly features like `const_trait_impl` and `const_default` for zero‑cost abstractions when compiled on a nightly toolchain.
-- **Deadlock Prevention**: Includes composite locks (like `Nested`) that enforce a fixed acquisition and release order.
-- **Granular Error Handling**: Distinct result types allow your code to differentiate between a busy lock, a successful acquisition, a timeout, and unrecoverable system aborts.
+- **Composable Primitives**: Decouple lock acquisition (`LockPolicy`) from retry
+/waiting strategies (`RetryPolicy`).
+- **Advanced Synchronization**: Includes `Gate` (controllable barriers),
+`Semaphore` (resource pooling), and `Condvar` (condition variables).
+- **Lock Poisoning**: Automatically detects panics inside critical sections
+(when `std` is enabled) and marks locks as poisoned, protecting data integrity
+with granular error types (`AcquireError`, `TryLockError`).
+- **`no_std` Support**: Fully compatible with `#![no_std]` environments by
+disabling the default `std` feature.
+- **Nightly Rust Optimizations**: Automatically leverages nightly features like
+`const_trait_impl` and `const_default` for zero‑cost abstractions when compiled
+on a nightly toolchain.
+- **Deadlock Prevention**: Includes composite locks (like `Nested`) that enforce
+a fixed acquisition and release order.
+- **Granular Error Handling**: Distinct result types allow your code to
+differentiate between a busy lock, a successful acquisition, a timeout, and
+unrecoverable system aborts.
 
 ## Batteries Included
 
-While Resync is built on modularity, it ships with an impressive, production-ready arsenal of synchronization primitives and backend policies out of the box:
+While Resync is built on modularity, it ships with an impressive,
+production-ready arsenal of synchronization primitives and backend policies out
+of the box:
 
 | Category | Batteries | Description |
 | :--- | :--- | :--- |
@@ -69,7 +86,8 @@ Add Resync to your dependencies:
 cargo add resync
 ```
 
-To use in a `#![no_std]` environment (e.g., embedded systems or kernels), disable the default features:
+To use in a `#![no_std]` environment (e.g., embedded systems or kernels),
+disable the default features:
 
 ```toml
 [dependencies]
@@ -95,7 +113,8 @@ fn main() {
 
 ### Controlling Thread Flow with `Gate`
 
-A `Gate` acts as a controllable barrier. By default, it starts in the **closed** state, blocking any threads that call `wait()`.
+A `Gate` acts as a controllable barrier. By default, it starts in the **closed**
+state, blocking any threads that call `wait()`.
 
 ```rust
 use resync::{Gate, lock::Atomic, retry::Yield};
@@ -120,10 +139,12 @@ for w in workers { w.join().unwrap(); }
 
 ## Feature Flags
 
-- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`), OS-specific lock backends, `Condvar`, and **Lock Poisoning**.
+- **`std`** *(enabled by default)*: Enables OS‑based retry (`retry::Yield`),
+OS-specific lock backends, `Condvar`, and **Lock Poisoning**.
 - **`dev`** *(disabled by default)*: Enables internal and unstable API public.
 - **`fake`** *(disabled by default)*: Enables `Fake` type for mocks.
-- **`__lint`** *(disabled by default)*: Development-only feature for `rust-analyzer`.
+- **`__lint`** *(disabled by default)*: Development-only feature for
+`rust-analyzer`.
 
 ## License
 

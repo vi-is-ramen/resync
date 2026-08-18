@@ -37,11 +37,13 @@
 //! # Guidebook
 //!
 //! For a comprehensive, interactive guide on the library's philosophy, design
-//! decisions, and advanced usage patterns, please visit the **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
+//! decisions, and advanced usage patterns, please visit the
+//! **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]
 #![allow(type_alias_bounds)]
+#![cfg_attr(nightly, feature(const_trait_impl))]
 extern crate libc;
 
 pub(crate) mod batteries;

@@ -24,7 +24,7 @@ def integration_and_regression_test():
 
 def main():
     unit_test()
-    integration_and_regression_test()
+    # integration_and_regression_test() # integration tests are implemented in Cargo-native way now
 
 
 main()

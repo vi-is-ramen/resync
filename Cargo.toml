@@ -3,7 +3,6 @@ name = "resync"
 version = "0.10.3"
 edition = "2024"
 rust-version = "1.98.0"
-workspace = "testing/util"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "A LEGO-like synchronization primitives library for Rust"
@@ -15,6 +14,7 @@ keywords = ["mutex", "synchronization", "no_std", "lock", "thread"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
+reta = "=0.1.1"
 # lock_api = "0.4"
 windows-sys = { version = "0.61", optional = true, features = [
     "Win32_System_Threading",
@@ -35,7 +35,8 @@ dev = []
 __lint = [ "std", "fake", "dev" ]
 
 [lints.rust]
-unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)', 'cfg(beta)', 'cfg(dev)'] }
+unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)',
+    'cfg(beta)', 'cfg(dev)'] }
 missing_docs = 'deny'
 missing_debug_implementations = 'deny'
 

@@ -14,7 +14,7 @@ use std::time::SystemTime;
 /// assert_eq!(id.len(), 16);
 /// assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
 /// ```
-#[cfg_attr(not(dev), allow(unused))]
+#[cfg_attr(feature = "__lint", reta::pub_)]
 pub(crate) fn random_hex_16() -> String
 {
     // Use current time as a source of entropy.

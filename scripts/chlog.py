@@ -138,7 +138,7 @@ def generate_release_notes(commits: list[tuple[str, str]]) -> str:
         output_lines.append(f"### {header}")  # pyright: ignore[reportUnknownMemberType]
         for item in items:  # pyright: ignore[reportUnknownVariableType]
             scope_str = f"({item['scope']})" if item['scope'] else ""
-            output_lines.append(f"- {item['description']} {scope_str} ([`{item['hash']}`])")  # pyright: ignore[reportUnknownMemberType]
+            output_lines.append(f"- {item['description']} {scope_str}")  # pyright: ignore[reportUnknownMemberType]
         output_lines.append("")  # pyright: ignore[reportUnknownMemberType]
 
     return "\n".join(output_lines)  # pyright: ignore[reportUnknownArgumentType]
