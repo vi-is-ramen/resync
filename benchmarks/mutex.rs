@@ -17,13 +17,13 @@ trait Mutex<T>: Send + Sync + 'static
 }
 
 impl<
-    T: Send + 'static,
-    L: 'static + resync::traits::LockPolicy,
-    R: 'static + resync::traits::RetryPolicy,
+    T: Send + 'static + core::fmt::Debug,
+    L: 'static + resync::traits::LockPolicy + Default + Send,
+    R: 'static + resync::traits::RetryPolicy + Default + Send,
 > Mutex<T> for resync::Mutex<T, L, R>
 {
     type Guard<'a>
-        = resync::MutexGuard<'a, T, L>
+        = resync::ExGuard<'a, T, L, resync::poison::StdPoison>
     where Self: 'a;
     fn new(x: T) -> Self
     {

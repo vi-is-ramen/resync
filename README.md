@@ -4,6 +4,7 @@
 [![Documentation](https://docs.rs/resync/badge.svg)](https://docs.rs/resync)
 [![License](https://img.shields.io/crates/l/resync.svg)](#license)
 [![Rust](https://img.shields.io/badge/rust-stable%20|%20beta%20|%20nightly-orange.svg)](https://www.rust-lang.org)
+![no_std](https://img.shields.io/badge/no__std-compatible-green.svg)
 
 > **HELP WANTED**
 >
