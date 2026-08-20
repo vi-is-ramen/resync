@@ -176,7 +176,8 @@ where
             {
                 Ok(LockStatus::Done(meta)) =>
                 {
-                    // SAFETY: We just acquired the exclusive writer lock.
+                    // SAFETY:
+                    // We just acquired the exclusive writer lock.
                     // No readers can be holding the lock, and no other thread
                     // can be modifying `meta` concurrently.
                     unsafe {
@@ -189,10 +190,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.inner.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.inner.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }
@@ -249,10 +257,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.inner.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.inner.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }
@@ -264,7 +279,7 @@ where
     /// and immediately releases a shared lock, returning `Ok(())`.
     pub fn try_wait(&self) -> Result<(), TryLockError<(), L::Error>>
     {
-        match self.inner.try_share(0)
+        match match self.inner.try_share(0)
         {
             Ok(LockStatus::Done(meta)) =>
             {
@@ -273,6 +288,14 @@ where
             },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
+        }
+        {
+            Ok(ok) => Ok(ok),
+            Err(e) =>
+            {
+                self.inner.abort();
+                Err(e)
+            },
         }
     }
 }

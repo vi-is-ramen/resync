@@ -24,7 +24,6 @@
 //!     assert_eq!(HASHMAP.get(&1), Some(&2));
 //! }
 //! ```
-
 use crate::LockStatus;
 use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
 use core::cell::UnsafeCell;
@@ -36,6 +35,7 @@ const UNTOUCHED: u8 = 0;
 const UNINIT: u8 = 1;
 const INITIALIZING: u8 = 2;
 const DONE: u8 = 3;
+const POISONED: u8 = 4;
 
 /// A value which is initialized on the first access.
 ///
@@ -52,10 +52,11 @@ const DONE: u8 = 3;
 ///
 /// # Poisoning
 ///
-/// If the initialization function panics, the `Lazy` primitive becomes
-/// poisoned (if the configured [`PoisonPolicy`] supports it, e.g.,
-/// [`crate::poison::StdPoison`]). Subsequent accesses will panic with a
-/// message indicating that the initialization failed.
+/// If the initialization function panics, the `Lazy` primitive transitions
+/// into a dedicated poisoned state. Subsequent accesses via
+/// [`force`](Self::force) or [`Deref`] will panic with a message indicating
+/// that the initialization failed. [`is_poisoned`](Self::is_poisoned) can be
+/// used to check for this condition without panicking.
 #[allow(missing_debug_implementations)]
 pub struct Lazy<
     T,
@@ -130,6 +131,11 @@ where
     ///
     /// This is equivalent to the `Deref` implementation, but allows explicit
     /// calls.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the initialization function previously panicked (the `Lazy`
+    /// is in a poisoned state).
     pub fn force(&self) -> &T
     where
         L: LockPolicy + Default,
@@ -140,6 +146,7 @@ where
         {
             DONE =>
             unsafe { (*self.data.get()).assume_init_ref() },
+            POISONED => panic!("Lazy initialization previously panicked"),
             UNTOUCHED => self.initialize_from_untouched(),
             UNINIT => self.wait_for_uninit(),
             INITIALIZING => self.wait_for_initializing(),
@@ -169,10 +176,8 @@ where
                     (*self.retry.get()).write(R::default());
                     (*self.poison.get()).write(P::default());
                 }
-
                 // Transition to INITIALIZING
                 self.state.store(INITIALIZING, Ordering::Release);
-
                 // Now initialize the actual value
                 self.do_initialize()
             },
@@ -191,8 +196,7 @@ where
     {
         let retry = R::default();
         let mut iterations = 0usize;
-
-        // Spin until state becomes INITIALIZING or DONE
+        // Spin until state becomes INITIALIZING, DONE, or POISONED
         loop
         {
             match self.state.load(Ordering::Acquire)
@@ -200,13 +204,11 @@ where
                 INITIALIZING => return self.wait_for_initializing(),
                 DONE =>
                 {
-                    // Check if poisoned
-                    if let Some(poison) = self.get_poison_state()
-                        && P::is_poisoned(poison)
-                    {
-                        panic!("Lazy initialization previously panicked");
-                    }
                     return unsafe { (*self.data.get()).assume_init_ref() };
+                },
+                POISONED =>
+                {
+                    panic!("Lazy initialization previously panicked");
                 },
                 _ =>
                 {
@@ -228,7 +230,6 @@ where
         // L/R/P are now initialized, use L to synchronize
         let lock = unsafe { (*self.lock.get()).assume_init_ref() };
         let retry = unsafe { (*self.retry.get()).assume_init_ref() };
-
         let mut iterations = 0usize;
         loop
         {
@@ -236,30 +237,34 @@ where
             {
                 Ok(LockStatus::Done(meta)) =>
                 {
-                    // We got the lock, check if initialization is done
-                    if self.state.load(Ordering::Acquire) == DONE
+                    // We got the lock, check the current state
+                    match self.state.load(Ordering::Acquire)
                     {
-                        unsafe { lock.free(&meta) };
-
-                        // Check if poisoned
-                        if let Some(poison) = self.get_poison_state()
-                            && P::is_poisoned(poison)
+                        DONE =>
                         {
+                            unsafe { lock.free(&meta) };
+                            return unsafe {
+                                (*self.data.get()).assume_init_ref()
+                            };
+                        },
+                        POISONED =>
+                        {
+                            unsafe { lock.free(&meta) };
                             panic!("Lazy initialization previously panicked");
-                        }
-                        return unsafe { (*self.data.get()).assume_init_ref() };
-                    }
-                    else
-                    {
-                        // Still initializing, release and retry
-                        unsafe { lock.free(&meta) };
-                        iterations += 1;
-                        if retry.retry(iterations).is_err()
+                        },
+                        _ =>
                         {
-                            panic!(
-                                "Retry policy aborted on Lazy initialization"
-                            );
-                        }
+                            // Still initializing, release and retry
+                            unsafe { lock.free(&meta) };
+                            iterations += 1;
+                            if retry.retry(iterations).is_err()
+                            {
+                                panic!(
+                                    "Retry policy aborted on Lazy \
+                                     initialization"
+                                );
+                            }
+                        },
                     }
                 },
                 Ok(LockStatus::Fail) =>
@@ -330,14 +335,15 @@ where
             fn drop(&mut self)
             {
                 unsafe { self.lock.free(&self.meta) };
-
                 if !self.success
                 {
                     P::on_drop(self.poison);
+                    self.state.store(POISONED, Ordering::Release);
                 }
-
-                // Transition to DONE
-                self.state.store(DONE, Ordering::Release);
+                else
+                {
+                    self.state.store(DONE, Ordering::Release);
+                }
             }
         }
 
@@ -352,41 +358,27 @@ where
         let value = init_fn();
         unsafe { (*self.data.get()).write(value) };
         guard.success = true;
-
         drop(guard);
 
         unsafe { (*self.data.get()).assume_init_ref() }
     }
 
-    fn get_poison_state(&self) -> Option<&P>
-    {
-        if self.state.load(Ordering::Acquire) == DONE
-        {
-            Some(unsafe { (*self.poison.get()).assume_init_ref() })
-        }
-        else
-        {
-            None
-        }
-    }
-
-    /// Returns `true` if the lazy value has been initialized.
+    /// Returns `true` if the lazy value has been successfully initialized.
+    ///
+    /// Returns `false` if the value has not been initialized yet, or if the
+    /// initialization panicked (poisoned state).
     pub fn is_initialized(&self) -> bool
     {
         self.state.load(Ordering::Acquire) == DONE
     }
 
     /// Returns `true` if the initialization panicked and the value is poisoned.
+    ///
+    /// A poisoned `Lazy` cannot be re-initialized. All subsequent accesses
+    /// via [`force`](Self::force) or [`Deref`] will panic.
     pub fn is_poisoned(&self) -> bool
     {
-        if let Some(poison) = self.get_poison_state()
-        {
-            P::is_poisoned(poison)
-        }
-        else
-        {
-            false
-        }
+        self.state.load(Ordering::Acquire) == POISONED
     }
 }
 

@@ -160,3 +160,8 @@ Licensed under either of
 * [MIT license](https://github.com/vi-is-ramen/resync/blob/main/LICENSE-MIT)
 
 at your option.
+
+<!--
+I was bored and calculated how much tests we do...
+120 tests (doc + case + api) * 3 OSes * 3 compilers * 4 feature sets... 4320 OMG
+-->

@@ -22,6 +22,7 @@ use core::sync::atomic::{AtomicU8, Ordering};
 const EMPTY: u8 = 0;
 const INITIALIZING: u8 = 1;
 const DONE: u8 = 2;
+const POISONED: u8 = 3;
 
 /// A synchronization primitive for one-time initialization.
 ///
@@ -117,6 +118,7 @@ impl<'a, L: LockPolicy> Drop for LockGuard<'a, L>
 struct PoisonGuard<'a, P: PoisonPolicy>
 {
     poison:  &'a P,
+    state:   &'a AtomicU8,
     success: bool,
 }
 
@@ -127,6 +129,7 @@ impl<'a, P: PoisonPolicy> Drop for PoisonGuard<'a, P>
         if !self.success
         {
             P::on_drop(self.poison);
+            self.state.store(POISONED, Ordering::Release);
         }
     }
 }
@@ -151,11 +154,20 @@ where
     ) -> Result<&T, AcquireError<(), L::Error, R::Error>>
     {
         // Fast-path
-        if self.state.load(Ordering::Acquire) == DONE
+        match self.state.load(Ordering::Acquire)
         {
-            return Ok(unsafe {
-                (*self.data.get()).as_ref().unwrap_unchecked()
-            });
+            DONE =>
+            {
+                return Ok(unsafe {
+                    (*self.data.get()).as_ref().unwrap_unchecked()
+                });
+            },
+            POISONED =>
+            {
+                return Err(AcquireError::Poisoned(PoisonError::new(())));
+            },
+            _ =>
+            {},
         }
 
         // Slow-path
@@ -173,42 +185,62 @@ where
                     };
                     let mut poison_guard = PoisonGuard::<P> {
                         poison:  &self.poison,
+                        state:   &self.state,
                         success: false,
                     };
 
                     let state = self.state.load(Ordering::Acquire);
-                    if state == DONE
+                    match state
                     {
-                        poison_guard.success = true;
-                        drop(lock_guard);
-                        return Ok(unsafe {
-                            (*self.data.get()).as_ref().unwrap_unchecked()
-                        });
+                        DONE =>
+                        {
+                            poison_guard.success = true;
+                            drop(lock_guard);
+                            return Ok(unsafe {
+                                (*self.data.get()).as_ref().unwrap_unchecked()
+                            });
+                        },
+                        POISONED =>
+                        {
+                            poison_guard.success = true;
+                            drop(lock_guard);
+                            return Err(AcquireError::Poisoned(
+                                PoisonError::new(()),
+                            ));
+                        },
+                        INITIALIZING =>
+                        {
+                            // Another thread is currently running the init
+                            // closure. Release the
+                            // lock and wait for it to finish.
+                            poison_guard.success = true;
+                            drop(lock_guard);
+                            if let Err(e) = self.retry.retry(iterations)
+                            {
+                                return Err(AcquireError::Retry(e));
+                            }
+                            continue;
+                        },
+                        EMPTY =>
+                        {
+                            // We are the first thread to reach this point.
+                            self.state.store(INITIALIZING, Ordering::Relaxed);
+
+                            let value = f();
+                            unsafe {
+                                *self.data.get() = Some(value);
+                            }
+
+                            self.state.store(DONE, Ordering::Release);
+                            poison_guard.success = true;
+                            drop(lock_guard);
+
+                            return Ok(unsafe {
+                                (*self.data.get()).as_ref().unwrap_unchecked()
+                            });
+                        },
+                        _ => unreachable!(),
                     }
-
-                    if state == INITIALIZING || P::is_poisoned(&self.poison)
-                    {
-                        poison_guard.success = true;
-                        drop(lock_guard);
-                        return Err(AcquireError::Poisoned(
-                            PoisonError::new(()),
-                        ));
-                    }
-
-                    self.state.store(INITIALIZING, Ordering::Relaxed);
-
-                    let value = f();
-                    unsafe {
-                        *self.data.get() = Some(value);
-                    }
-
-                    self.state.store(DONE, Ordering::Release);
-                    poison_guard.success = true;
-                    drop(lock_guard);
-
-                    return Ok(unsafe {
-                        (*self.data.get()).as_ref().unwrap_unchecked()
-                    });
                 },
                 Ok(LockStatus::Fail) =>
                 {
@@ -217,7 +249,10 @@ where
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    return Err(AcquireError::Lock(e));
+                },
             }
         }
     }
@@ -246,6 +281,6 @@ where
     /// primitive is poisoned.
     pub fn is_poisoned(&self) -> bool
     {
-        P::is_poisoned(&self.poison)
+        self.state.load(Ordering::Acquire) == POISONED
     }
 }

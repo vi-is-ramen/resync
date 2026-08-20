@@ -190,4 +190,9 @@ where Self: Sync
     /// implementations should override this to broadcast a wake to all
     /// waiters.
     fn wake_all(&self) {}
+
+    /// What to do if exclusive acquisition loop was aborted?
+    ///
+    /// The default implementation is no-op.
+    fn abort(&self) {}
 }

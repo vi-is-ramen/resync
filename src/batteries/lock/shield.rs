@@ -131,7 +131,11 @@ where L: LockPolicy
             {
                 // Contention: the writer must wait. Increment the pending
                 // writer count to signal readers to yield.
-                self.pending.fetch_add(1, Ordering::Release);
+                if current_iteration == 1
+                {
+                    self.pending.fetch_add(1, Ordering::Release);
+                }
+
                 Ok(crate::LockStatus::Fail)
             },
             Err(x) =>
@@ -156,6 +160,11 @@ where L: LockPolicy
     fn wake_all(&self)
     {
         self.inner.wake_all()
+    }
+
+    fn abort(&self)
+    {
+        self.pending.fetch_sub(1, Ordering::Acquire);
     }
 }
 

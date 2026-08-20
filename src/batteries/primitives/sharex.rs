@@ -169,7 +169,7 @@ where
     /// Attempts to acquire an exclusive (write) lock without blocking.
     pub fn try_write(&self) -> SharexTryWriteResult<'_, T, L, P>
     {
-        match unsafe { self.lock.try_lock(0) }
+        match match unsafe { self.lock.try_lock(0) }
         {
             Ok(LockStatus::Done(meta)) =>
             {
@@ -190,6 +190,14 @@ where
             },
             Ok(LockStatus::Fail) => Err(TryLockError::Contention),
             Err(e) => Err(TryLockError::Lock(e)),
+        }
+        {
+            Ok(ok) => Ok(ok),
+            Err(e) =>
+            {
+                self.lock.abort();
+                Err(e)
+            },
         }
     }
 
@@ -251,6 +259,8 @@ where
                     );
                     if P::is_poisoned(&self.poisoned)
                     {
+                        self.lock.abort();
+
                         return Err(AcquireError::Poisoned(PoisonError::new(
                             guard,
                         )));
@@ -261,10 +271,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.lock.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.lock.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }

@@ -61,6 +61,17 @@ where
     E2(E2),
 }
 
+impl<E1, E2> core::fmt::Debug for Nested<E1, E2>
+where
+    E1: LockPolicy + core::fmt::Debug,
+    E2: LockPolicy + core::fmt::Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    {
+        f.write_fmt(format_args!("Nested {{ {:?} {:?} }}", self.l1, self.l2))
+    }
+}
+
 impl<E1, E2> core::fmt::Display for NestedError<E1, E2>
 where
     E1: core::error::Error + core::fmt::Display,

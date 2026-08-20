@@ -148,6 +148,8 @@ where
                         unsafe { self.lock.free(&meta) };
                         if let Err(e) = self.retry.retry(iterations)
                         {
+                            self.lock.abort();
+
                             return Err(AcquireError::Retry(e));
                         }
                     }
@@ -156,10 +158,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.lock.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.lock.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }
@@ -190,6 +199,7 @@ where
                 else
                 {
                     unsafe { self.lock.free(&meta) };
+                    self.lock.abort();
                     Err(TryLockError::Contention)
                 }
             },
@@ -231,10 +241,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.lock.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.lock.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }
@@ -263,10 +280,17 @@ where
                 {
                     if let Err(e) = self.retry.retry(iterations)
                     {
+                        self.lock.abort();
+
                         return Err(AcquireError::Retry(e));
                     }
                 },
-                Err(e) => return Err(AcquireError::Lock(e)),
+                Err(e) =>
+                {
+                    self.lock.abort();
+
+                    return Err(AcquireError::Lock(e))
+                },
             }
         }
     }
