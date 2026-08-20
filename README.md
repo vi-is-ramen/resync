@@ -164,4 +164,9 @@ at your option.
 <!--
 I was bored and calculated how much tests we do...
 120 tests (doc + case + api) * 3 OSes * 3 compilers * 4 feature sets... 4320 OMG
+
+Wait, I also have Miri job! It only runs on ubuntu-latest to make pipeline a bit
+faster, so it only adds 120 test runs.
+
+Total: 4440 tests. Looks impressive, actually.
 -->
