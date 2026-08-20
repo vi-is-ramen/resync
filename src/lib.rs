@@ -38,7 +38,15 @@
 //!
 //! For a comprehensive, interactive guide on the library's philosophy, design
 //! decisions, and advanced usage patterns, please visit the
-//! **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
+//! **[Resync Book](https://vi-is-ramen.github.io/resync/lib/)**.
+//!
+//! > **ATTENTION**
+//! >
+//! > Resync's types are not compatible with `lock_api`'s traits. The mental
+//! > models
+//! > and architectures of Resync and `lock_api` are fundamentally incompatible.
+//! > Until Rust's `const_traits` and `const_trait_impl` are stabilized and
+//! > `lock_api` adopts a compatible model, we are not compatible.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(feature = "std")]

@@ -22,11 +22,15 @@
 > Until Rust's `const_traits` and `const_trait_impl` are stabilized and
 > `lock_api` adopts a compatible model, we are not compatible.
 
-> **GUIDEBOOK**
+> **GUIDEBOOKS**
 >
-> For a comprehensive, interactive guide on the library's philosophy, design
-> decisions, and advanced usage patterns, please visit the
-> **[Resync Book](https://vi-is-ramen.github.io/resync/)**.
+> Resync ships with two comprehensive, interactive mdBook guides:
+> - **[The Library Book](https://vi-is-ramen.github.io/resync/lib/)**: For
+>   *users* of the crate. Covers the LEGO philosophy, core traits, built-in
+>   batteries, design decisions, and advanced usage patterns.
+> - **[The Developer Guide](https://vi-is-ramen.github.io/resync/dev/)**:
+>   For *contributors* and *maintainers*. Covers the repository layout, CI/CD
+>   pipelines, feature lifecycle, and how to safely evolve the API.
 
 A LEGO-like library of synchronization primitives for Rust.
 
@@ -133,6 +137,7 @@ let workers: Vec<_> = (0..4).map(|i| {
 }).collect();
 
 // ... perform setup ...
+
 gate.open(); // Unblocks all workers simultaneously
 
 for w in workers { w.join().unwrap(); }
