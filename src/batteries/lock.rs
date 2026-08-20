@@ -68,7 +68,7 @@ pub type DefaultLock = Rwl;
 /// Default lock implementation for current environment.
 ///
 /// As bare-metal target selected, it is Atomic.
-#[cfg(any(no_std, not(docsrs)))]
+#[cfg(all(no_std, not(docsrs)))]
 pub type DefaultLock = Atomic;
 
 /// Default lock implementation for current environment.

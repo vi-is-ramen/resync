@@ -83,7 +83,7 @@ pub type DefaultPoison = StdPoison;
 /// The default poison policy.
 ///
 /// As `std` feature disabled, it is `NoPoison`.
-#[cfg(not(all(std, docsrs)))]
+#[cfg(all(no_std, not(docsrs)))]
 pub type DefaultPoison = NoPoison;
 
 /// The default poison policy.
