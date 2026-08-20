@@ -58,16 +58,21 @@ uses character-driven tests.
 
 Throughout this guide, you'll see several types of callouts:
 
-> **TIP**: A helpful hint for contributors.
+> **TIP**
 >
-> **WARNING**: Something that can easily break or cause regressions.
->
-> **ATTENTION**: Something that you really need to know.
->
-> **SECURITY**: Information critical to the security patch lifecycle.
+> A helpful hint for contributors.
 
-Code examples are written in Rust and are fully executable via the mdBook
-playground (click the play icon in the top-right corner of any code block!).
+> **WARNING**
+> 
+> Something that can easily break or cause regressions.
+
+> **ATTENTION**
+>
+> Something that you really need to know.
+
+> **SECURITY**
+> 
+> Information critical to the security patch lifecycle.
 
 ---
 

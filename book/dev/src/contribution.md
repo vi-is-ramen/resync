@@ -187,7 +187,6 @@ Once your branch is pushed to your fork, open a PR against `main`.
 
 The PR template will automatically populate with a checklist:
 
-```markdown
 - [ ] **Conventional Commits:** My commit messages follow the specification.
 - [ ] **Standards:** I used `./commit` to perform all commits.
 - [ ] **Green CI:** I have checked the whole CI pipeline to be successful.
@@ -195,7 +194,7 @@ The PR template will automatically populate with a checklist:
 correct.
 - [ ] **Benching:** I have wrote new benchmarks (if applicable).
 - [ ] **Documentation:** I have updated inline `///` doc-comments and books.
-```
+
 
 ### What Maintainers Look For
 

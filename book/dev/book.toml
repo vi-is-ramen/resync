@@ -9,5 +9,5 @@ git-repository-url = "https://github.com/vi-is-ramen/resync/"
 edit-url-template = "https://github.com/vi-is-ramen/resync/edit/main/{path}"
 site-url = "/resync/dev/"
 
-[output.html.playground]
-editable = true
+# [output.html.playground]
+# editable = true
