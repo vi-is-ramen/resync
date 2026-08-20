@@ -19,7 +19,7 @@ pub struct Mutex<
     inner:    UnsafeCell<T>,
     lock:     L,
     retry:    R,
-    poisoned: P::State,
+    poisoned: P,
 }
 
 impl<T, L, R, P> core::fmt::Debug for Mutex<T, L, R, P>
@@ -63,7 +63,7 @@ where
     T: Default,
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     fn default() -> Self
     {
@@ -71,7 +71,7 @@ where
             inner:    UnsafeCell::new(T::default()),
             lock:     L::default(),
             retry:    R::default(),
-            poisoned: P::new_state(),
+            poisoned: P::default(),
         }
     }
 }
@@ -120,7 +120,7 @@ impl<T, L, R, P> Mutex<T, L, R, P>
 where
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     /// Creates a new mutex protecting the given `value`.
     pub fn new(value: T) -> Self
@@ -129,7 +129,7 @@ where
             inner:    UnsafeCell::new(value),
             lock:     L::default(),
             retry:    R::default(),
-            poisoned: P::new_state(),
+            poisoned: P::default(),
         }
     }
 }
@@ -266,10 +266,12 @@ impl<'a, T, L, R, P>
     crate::api::Mutex<
         'a,
         T,
-        MutexTryLockResult<'a, T, L, P>,
-        MutexLockResult<'a, T, L, R, P>,
+        ExGuard<'a, T, L, P>,
+        TryLockError<ExGuard<'a, T, L, P>, L::Error>,
+        AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
     > for Mutex<T, L, R, P>
 where
+    T: core::fmt::Debug,
     L: LockPolicy,
     R: RetryPolicy,
     P: PoisonPolicy,

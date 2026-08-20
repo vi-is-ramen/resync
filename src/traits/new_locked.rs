@@ -48,6 +48,7 @@ use crate::traits::LockPolicy;
 /// that any subsequent call to [`LockPolicy::try_lock`] by another thread will
 /// correctly observe contention (returning [`crate::LockStatus::Fail`] or
 /// blocking/parking, depending on the adaptive strategy).
+// NOTE: This trait **must not** be dyn-compatible by design.
 pub trait NewLocked: LockPolicy
 {
     /// Creates a new instance of the lock policy in the **locked** (acquired)

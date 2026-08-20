@@ -15,22 +15,17 @@ pub struct NoPoison;
 
 impl PoisonPolicy for NoPoison
 {
-    type State = ();
-
     #[inline]
-    fn new_state() -> Self::State {}
-
-    #[inline]
-    fn is_poisoned(_: &Self::State) -> bool
+    fn is_poisoned(&self) -> bool
     {
         false
     }
 
     #[inline]
-    fn on_drop(_: &Self::State) {}
+    fn on_drop(&self) {}
 
     #[inline]
-    unsafe fn clear_poison(_: &Self::State) {}
+    unsafe fn clear_poison(&self) {}
 }
 
 /// A poison policy that uses `std::thread::panicking()` to detect panics.
@@ -38,39 +33,31 @@ impl PoisonPolicy for NoPoison
 /// This is the default policy when the `std` feature is enabled. It stores
 /// the poisoned state in an [`AtomicBool`].
 #[cfg(any(std, docsrs))]
-#[derive(Debug, Default, Clone, Copy)]
-pub struct StdPoison;
+#[derive(Debug, Default)]
+pub struct StdPoison(AtomicBool);
 
 #[cfg(any(std, docsrs))]
 impl PoisonPolicy for StdPoison
 {
-    type State = AtomicBool;
-
     #[inline]
-    fn new_state() -> Self::State
+    fn is_poisoned(&self) -> bool
     {
-        AtomicBool::new(false)
+        self.0.load(Ordering::Acquire)
     }
 
     #[inline]
-    fn is_poisoned(state: &Self::State) -> bool
-    {
-        state.load(Ordering::Acquire)
-    }
-
-    #[inline]
-    fn on_drop(state: &Self::State)
+    fn on_drop(&self)
     {
         if std::thread::panicking()
         {
-            state.store(true, Ordering::Release);
+            self.0.store(true, Ordering::Release);
         }
     }
 
     #[inline]
-    unsafe fn clear_poison(state: &Self::State)
+    unsafe fn clear_poison(&self)
     {
-        state.store(false, Ordering::Release);
+        self.0.store(false, Ordering::Release);
     }
 }
 

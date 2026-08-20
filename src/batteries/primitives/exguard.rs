@@ -15,14 +15,14 @@ where
     data:        *mut T,
     lock:        &'a L,
     meta:        M,
-    poison_flag: &'a P::State,
+    poison_flag: &'a P,
 }
 
 unsafe impl<'a, T, L, P, M> core::marker::Send for ExGuard<'a, T, L, P, M>
 where
     T: Send,
     L: LockPolicy<Meta = M> + Send,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Send,
     M: Send,
 {
 }
@@ -33,12 +33,7 @@ where
     P: PoisonPolicy,
 {
     /// Creates a new guard.
-    pub fn new(
-        data: *mut T,
-        lock: &'a L,
-        meta: M,
-        poison_flag: &'a P::State,
-    ) -> Self
+    pub fn new(data: *mut T, lock: &'a L, meta: M, poison_flag: &'a P) -> Self
     {
         Self {
             data,
@@ -123,4 +118,18 @@ where
     {
         unsafe { self.data.as_mut_unchecked() }
     }
+}
+
+impl<'a, T, L, P, M> crate::api::Guard<T> for ExGuard<'a, T, L, P, M>
+where
+    L: LockPolicy<Meta = M>,
+    P: PoisonPolicy,
+{
+}
+
+impl<'a, T, L, P, M> crate::api::GuardMut<T> for ExGuard<'a, T, L, P, M>
+where
+    L: LockPolicy<Meta = M>,
+    P: PoisonPolicy,
+{
 }

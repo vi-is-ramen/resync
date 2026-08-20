@@ -1,5 +1,6 @@
 //! A shared RAII guard that provides shared (read) access to the protected
 //! data.
+
 use crate::traits::{LockPolicy, PoisonPolicy, SharingPolicy};
 use core::ops::Deref;
 
@@ -14,7 +15,7 @@ where
     data:        *const T,
     lock:        &'a L,
     meta:        M,
-    poison_flag: &'a P::State,
+    poison_flag: &'a P,
 }
 
 unsafe impl<'a, T, L, P, M> core::marker::Send for ShGuard<'a, T, L, P, M>
@@ -32,12 +33,8 @@ where
     P: PoisonPolicy,
 {
     /// Creates a new shared guard.
-    pub fn new(
-        data: *const T,
-        lock: &'a L,
-        meta: M,
-        poison_flag: &'a P::State,
-    ) -> Self
+    pub fn new(data: *const T, lock: &'a L, meta: M, poison_flag: &'a P)
+    -> Self
     {
         Self {
             data,
@@ -83,4 +80,11 @@ where
     {
         unsafe { self.data.as_ref_unchecked() }
     }
+}
+
+impl<'a, T, L, P, M> crate::api::Guard<T> for ShGuard<'a, T, L, P, M>
+where
+    L: SharingPolicy<Meta = M>,
+    P: PoisonPolicy,
+{
 }

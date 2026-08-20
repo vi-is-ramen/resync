@@ -18,10 +18,12 @@
 //! `resync::api` provides a richer, more expressive set of traits that preserve
 //! these safety guarantees while enabling ecosystem interoperability.
 
+pub(crate) mod guard;
 pub(crate) mod mutex;
 pub(crate) mod sharex;
 
 // Re-export core traits so users can access them via `resync::api::*`
 pub use crate::traits::*;
+pub use guard::*;
 pub use mutex::*;
 pub use sharex::*;

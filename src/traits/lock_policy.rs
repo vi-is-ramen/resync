@@ -115,6 +115,7 @@ use core::convert::Infallible;
 ///   initialization.
 /// - The [`LockResult`] type and the [`LockStatus`] enum used in method return
 ///   values.
+// NOTE: This trait **must** be dyn-compatible by design.
 pub unsafe trait LockPolicy
 where Self: Sync
 {

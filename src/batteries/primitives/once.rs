@@ -43,7 +43,7 @@ pub struct Once<
     state:  AtomicU8,
     lock:   L,
     retry:  R,
-    poison: P::State,
+    poison: P,
     data:   UnsafeCell<Option<T>>,
 }
 
@@ -73,7 +73,7 @@ impl<T, L, R, P> Once<T, L, R, P>
 where
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     /// Creates a new, uninitialized `Once` primitive.
     pub fn new() -> Self
@@ -82,7 +82,7 @@ where
             state:  AtomicU8::new(EMPTY),
             lock:   L::default(),
             retry:  R::default(),
-            poison: P::new_state(),
+            poison: P::default(),
             data:   UnsafeCell::new(None),
         }
     }
@@ -92,7 +92,7 @@ impl<T, L, R, P> core::default::Default for Once<T, L, R, P>
 where
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     fn default() -> Self
     {
@@ -116,7 +116,7 @@ impl<'a, L: LockPolicy> Drop for LockGuard<'a, L>
 
 struct PoisonGuard<'a, P: PoisonPolicy>
 {
-    poison:  &'a P::State,
+    poison:  &'a P,
     success: bool,
 }
 

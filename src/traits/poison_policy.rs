@@ -24,23 +24,18 @@
 /// Implementations of this trait determine whether a lock should be marked
 /// as poisoned when a thread panics while holding it, and how to store and
 /// query this poisoned state.
+// NOTE: This trait **must** be dyn-compatible by design.
 pub trait PoisonPolicy
 {
-    /// The state stored inside the lock primitive to track poisoning.
-    type State;
-
-    /// Creates the initial (unpoisoned) state.
-    fn new_state() -> Self::State;
-
     /// Returns `true` if the lock is currently poisoned.
-    fn is_poisoned(state: &Self::State) -> bool;
+    fn is_poisoned(&self) -> bool;
 
     /// Called when a guard is dropped.
     ///
     /// Implementations should check if the current thread is panicking
     /// (or use their own custom panic detection mechanism) and update the
     /// `state` accordingly.
-    fn on_drop(state: &Self::State);
+    fn on_drop(&self);
 
     /// Clears the poisoned state.
     ///
@@ -48,5 +43,5 @@ pub trait PoisonPolicy
     ///
     /// The caller must ensure that the protected data has been manually
     /// repaired or validated before calling this method.
-    unsafe fn clear_poison(state: &Self::State);
+    unsafe fn clear_poison(&self);
 }

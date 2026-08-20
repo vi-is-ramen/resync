@@ -74,7 +74,7 @@ pub struct Lazy<
     data:   UnsafeCell<MaybeUninit<T>>,
     lock:   UnsafeCell<MaybeUninit<L>>,
     retry:  UnsafeCell<MaybeUninit<R>>,
-    poison: UnsafeCell<MaybeUninit<P::State>>,
+    poison: UnsafeCell<MaybeUninit<P>>,
 }
 
 // SAFETY:
@@ -134,6 +134,7 @@ where
     where
         L: LockPolicy + Default,
         R: RetryPolicy + Default,
+        P: Default,
     {
         match self.state.load(Ordering::Acquire)
         {
@@ -150,6 +151,7 @@ where
     where
         L: LockPolicy + Default,
         R: RetryPolicy + Default,
+        P: Default,
     {
         // Try to transition from UNTOUCHED to UNINIT
         match self.state.compare_exchange(
@@ -165,7 +167,7 @@ where
                 unsafe {
                     (*self.lock.get()).write(L::default());
                     (*self.retry.get()).write(R::default());
-                    (*self.poison.get()).write(P::new_state());
+                    (*self.poison.get()).write(P::default());
                 }
 
                 // Transition to INITIALIZING
@@ -318,7 +320,7 @@ where
         {
             lock:    &'a L,
             meta:    L::Meta,
-            poison:  &'a P::State,
+            poison:  &'a P,
             state:   &'a AtomicU8,
             success: bool,
         }
@@ -356,7 +358,7 @@ where
         unsafe { (*self.data.get()).assume_init_ref() }
     }
 
-    fn get_poison_state(&self) -> Option<&P::State>
+    fn get_poison_state(&self) -> Option<&P>
     {
         if self.state.load(Ordering::Acquire) == DONE
         {
@@ -393,7 +395,7 @@ where
     F: FnOnce() -> T,
     L: LockPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     type Target = T;
 

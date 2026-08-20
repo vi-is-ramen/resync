@@ -21,7 +21,7 @@ pub struct Sharex<
     inner:    UnsafeCell<T>,
     lock:     L,
     retry:    R,
-    poisoned: P::State,
+    poisoned: P,
 }
 
 unsafe impl<T, L, R, P> core::marker::Sync for Sharex<T, L, R, P>
@@ -46,7 +46,7 @@ where
     T: Default,
     L: SharingPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     fn default() -> Self
     {
@@ -54,7 +54,7 @@ where
             inner:    UnsafeCell::default(),
             lock:     L::default(),
             retry:    R::default(),
-            poisoned: P::new_state(),
+            poisoned: P::default(),
         }
     }
 }
@@ -119,7 +119,7 @@ impl<T, L, R, P> Sharex<T, L, R, P>
 where
     L: SharingPolicy + Default,
     R: RetryPolicy + Default,
-    P: PoisonPolicy,
+    P: PoisonPolicy + Default,
 {
     /// Creates a new `Sharex` lock protecting the given `value`.
     pub fn new(value: T) -> Self
@@ -128,7 +128,7 @@ where
             inner:    UnsafeCell::new(value),
             lock:     L::default(),
             retry:    R::default(),
-            poisoned: P::new_state(),
+            poisoned: P::default(),
         }
     }
 }
@@ -331,10 +331,12 @@ impl<'a, T, L, R, P>
     crate::api::Mutex<
         'a,
         T,
-        SharexTryWriteResult<'a, T, L, P>,
-        SharexWriteResult<'a, T, L, R, P>,
+        ExGuard<'a, T, L, P>,
+        TryLockError<ExGuard<'a, T, L, P>, L::Error>,
+        AcquireError<ExGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
     > for Sharex<T, L, R, P>
 where
+    T: core::fmt::Debug,
     L: SharingPolicy,
     R: RetryPolicy,
     P: PoisonPolicy,
@@ -354,21 +356,23 @@ impl<'a, T, L, R, P>
     crate::api::Sharex<
         'a,
         T,
-        SharexTryReadResult<'a, T, L, P>,
-        SharexReadResult<'a, T, L, R, P>,
+        ShGuard<'a, T, L, P>,
+        TryLockError<ShGuard<'a, T, L, P>, L::Error>,
+        AcquireError<ShGuard<'a, T, L, P>, L::Error, <R as RetryPolicy>::Error>,
     > for Sharex<T, L, R, P>
 where
+    T: core::fmt::Debug,
     L: SharingPolicy,
     R: RetryPolicy,
     P: PoisonPolicy,
 {
-    fn try_read(&'a self) -> SharexTryReadResult<'a, T, L, P>
-    {
-        self.try_read()
-    }
-
     fn read(&'a self) -> SharexReadResult<'a, T, L, R, P>
     {
         self.read()
+    }
+
+    fn try_read(&'a self) -> SharexTryReadResult<'a, T, L, P>
+    {
+        self.try_read()
     }
 }
