@@ -1,4 +1,4 @@
-name: Deploy mdBook to GitHub Pages
+name: Deploy mdBooks to GitHub Pages
 
 on:
   push:
@@ -20,20 +20,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: 'latest'
-      - run: cd book/dev && mdbook build
+
+      - name: Build Developer Guide
+        run: cd book/dev && mdbook build -d ../../site/dev
+
+      - name: Build Library Book
+        run: cd book/lib && mdbook build -d ../../site/lib
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./book
+          path: ./site
 
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}/dev
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
