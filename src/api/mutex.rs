@@ -61,6 +61,7 @@ pub trait Mutex<'a, T, TryR, R>: Sync
     fn lock(&'a self) -> R;
 }
 
+#[cfg(any(std, docsrs))]
 impl<'a, T>
     Mutex<
         'a,

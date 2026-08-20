@@ -39,4 +39,13 @@ fn main()
 
     #[cfg(feature = "dev")]
     println!("cargo:rustc-cfg=dev");
+
+    #[cfg(feature = "__lint")]
+    println!("cargo:rustc-cfg=docsrs");
+
+    #[cfg(not(feature = "std"))]
+    println!("cargo:rustc-cfg=no_std");
+
+    #[cfg(feature = "std")]
+    println!("cargo:rustc-cfg=std");
 }

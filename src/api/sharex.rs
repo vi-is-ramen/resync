@@ -51,6 +51,7 @@ pub trait Sharex<'a, T, TryR, R>: Sync
     fn read(&'a self) -> R;
 }
 
+#[cfg(any(std, docsrs))]
 impl<'a, T>
     crate::api::Sharex<
         'a,

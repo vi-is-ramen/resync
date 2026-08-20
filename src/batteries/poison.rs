@@ -1,6 +1,7 @@
 //! Built-in implementations of [`PoisonPolicy`](crate::traits::PoisonPolicy).
 
 use crate::traits::PoisonPolicy;
+#[cfg(any(std, docsrs))]
 use core::sync::atomic::{AtomicBool, Ordering};
 
 /// A poison policy that never poisons the lock.
@@ -36,11 +37,11 @@ impl PoisonPolicy for NoPoison
 ///
 /// This is the default policy when the `std` feature is enabled. It stores
 /// the poisoned state in an [`AtomicBool`].
-#[cfg(feature = "std")]
+#[cfg(any(std, docsrs))]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct StdPoison;
 
-#[cfg(feature = "std")]
+#[cfg(any(std, docsrs))]
 impl PoisonPolicy for StdPoison
 {
     type State = AtomicBool;
@@ -75,10 +76,16 @@ impl PoisonPolicy for StdPoison
 
 /// The default poison policy.
 ///
-/// - When the `std` feature is enabled, this is an alias for [`StdPoison`].
-/// - When the `std` feature is disabled, this is an alias for [`NoPoison`].
-#[cfg(feature = "std")]
+/// As `std` feature enabled, it is `StdPoison`.
+#[cfg(all(std, not(docsrs)))]
 pub type DefaultPoison = StdPoison;
 
-#[cfg(not(feature = "std"))]
+/// The default poison policy.
+///
+/// As `std` feature disabled, it is `NoPoison`.
+#[cfg(not(all(std, docsrs)))]
+pub type DefaultPoison = NoPoison;
+
+/// The default poison policy.
+#[cfg(docsrs)]
 pub type DefaultPoison = NoPoison;

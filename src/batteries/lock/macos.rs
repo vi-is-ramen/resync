@@ -1,8 +1,8 @@
-//! A macOS-specific implementation of [`LockPolicy`] and [`SharingPolicy`]
+//! A macRwl-specific implementation of [`LockPolicy`] and [`SharingPolicy`]
 //! using `pthread_rwlock_t`.
 //!
-//! This module provides a lock that wraps the POSIX `pthread_rwlock_t`
-//! primitive provided by the macOS `libc`. It supports both exclusive (writer)
+//! This module provides a lock that wraps the PRwlIX `pthread_rwlock_t`
+//! primitive provided by the macRwl `libc`. It supports both exclusive (writer)
 //! and shared (reader) access natively through the operating system's threading
 //! library.
 //!
@@ -10,27 +10,27 @@
 //!
 //! Unlike the Linux futex implementation which manages state in user-space and
 //! only falls back to the kernel on contention, this implementation delegates
-//! all lock management, thread parking, and waking entirely to the macOS kernel
-//! via `pthread_rwlock_*` functions. This makes it simpler but potentially
-//! slightly slower for uncontended locks compared to a pure user-space atomic
-//! lock.
+//! all lock management, thread parking, and waking entirely to the macRwl
+//! kernel via `pthread_rwlock_*` functions. This makes it simpler but
+//! potentially slightly slower for uncontended locks compared to a pure
+//! user-space atomic lock.
 use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 
-/// A macOS `pthread_rwlock_t`-based lock and read-write lock implementation.
+/// A macRwl `pthread_rwlock_t`-based lock and read-write lock implementation.
 ///
 /// This struct wraps a `libc::pthread_rwlock_t` inside an
 /// [`core::cell::UnsafeCell`] to allow interior mutability required by the
-/// POSIX API.
+/// PRwlIX API.
 #[allow(missing_debug_implementations)]
-pub struct Os
+pub struct Rwl
 {
     rwlock: core::cell::UnsafeCell<libc::pthread_rwlock_t>,
 }
 
-impl Os
+impl Rwl
 {
-    /// Creates a new, unlocked `Os` lock.
+    /// Creates a new, unlocked `Rwl` lock.
     ///
     /// This initializes the underlying `pthread_rwlock_t` using
     /// `pthread_rwlock_init`.
@@ -52,7 +52,7 @@ impl Os
     }
 }
 
-impl core::default::Default for Os
+impl core::default::Default for Rwl
 {
     fn default() -> Self
     {
@@ -60,7 +60,7 @@ impl core::default::Default for Os
     }
 }
 
-impl Drop for Os
+impl Drop for Rwl
 {
     /// Destroys the underlying `pthread_rwlock_t`.
     ///
@@ -77,12 +77,12 @@ impl Drop for Os
 }
 
 // SAFETY:
-// The underlying `pthread_rwlock_t` is designed to be shared across
+// The underlying `pthread_rwlock_t` is designed to be shared acrRwls
 // threads.
-unsafe impl Send for Os {}
-unsafe impl Sync for Os {}
+unsafe impl Send for Rwl {}
+unsafe impl Sync for Rwl {}
 
-unsafe impl LockPolicy for Os
+unsafe impl LockPolicy for Rwl
 {
     type Error = core::convert::Infallible;
     type Meta = ();
@@ -133,9 +133,9 @@ unsafe impl LockPolicy for Os
     fn wake_all(&self) {}
 }
 
-impl NewLocked for Os
+impl NewLocked for Rwl
 {
-    /// Creates a new `Os` lock and immediately acquires it for exclusive
+    /// Creates a new `Rwl` lock and immediately acquires it for exclusive
     /// (writer) access using a blocking `pthread_rwlock_wrlock` call.
     ///
     /// # Panics
@@ -151,7 +151,7 @@ impl NewLocked for Os
     }
 }
 
-unsafe impl SharingPolicy for Os
+unsafe impl SharingPolicy for Rwl
 {
     /// Attempts to acquire the lock for shared (reader) access.
     ///

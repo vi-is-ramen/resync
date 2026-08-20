@@ -1,17 +1,17 @@
 {
-  "lsp": {
-    "rust-analyzer": {
-      "initialization_options": {
-        "cargo": {
-          "features": "all",
-          "allTargets": true,
-        },
-        "check": {
-          "command": "clippy",
-          "allTargets": true,
-          "features": "all",
+    "lsp": {
+        "rust-analyzer": {
+            "initialization_options": {
+                "cargo": {
+                    "features": ["__lint"],
+                    "allTargets": true
+                },
+                "check": {
+                    "command": "clippy",
+                    "allTargets": true,
+                    "features": ["__lint"]
+                }
+            }
         }
-      }
     }
-  }
 }

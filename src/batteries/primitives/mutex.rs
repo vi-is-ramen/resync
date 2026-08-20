@@ -4,17 +4,12 @@ use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError, TryLockError};
 use core::cell::UnsafeCell;
 
-#[cfg(feature = "__lint")]
-use crate::lock::Atomic as DefaultLock;
-#[cfg(not(feature = "__lint"))]
-use crate::lock::Os as DefaultLock;
-
 /// A mutual exclusion (mutex) primitive that protects a value of type `T`.
 #[allow(missing_debug_implementations)]
 pub struct Mutex<
     T,
-    L = DefaultLock,
-    R = crate::retry::Yield,
+    L = crate::lock::DefaultLock,
+    R = crate::retry::DefaultRetry,
     P = crate::poison::DefaultPoison,
 > where
     L: LockPolicy,

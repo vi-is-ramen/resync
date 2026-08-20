@@ -5,18 +5,13 @@ use crate::{
 };
 use core::cell::UnsafeCell;
 
-#[cfg(feature = "__lint")]
-use crate::lock::Atomic as DefaultLock;
-#[cfg(not(feature = "__lint"))]
-use crate::lock::Os as DefaultLock;
-
 /// A shareable-exclusive (read-write) lock primitive that protects a value of
 /// type `T`.
 #[allow(missing_debug_implementations)]
 pub struct Sharex<
     T,
-    L = crate::lock::Shield<DefaultLock>,
-    R = crate::retry::Yield,
+    L = crate::lock::Shield<crate::lock::DefaultLock>,
+    R = crate::retry::DefaultRetry,
     P = crate::poison::DefaultPoison,
 > where
     L: SharingPolicy,

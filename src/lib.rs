@@ -49,13 +49,14 @@
 //! > `lock_api` adopts a compatible model, we are not compatible.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg(feature = "std")]
 #![allow(type_alias_bounds)]
 #![cfg_attr(nightly, feature(const_trait_impl))]
+#[cfg(feature = "std")]
 extern crate libc;
 
 pub(crate) mod batteries;
 pub mod traits;
+#[cfg(feature = "std")]
 pub(crate) mod util;
 
 pub use batteries::primitives::*;
@@ -65,9 +66,3 @@ mod result;
 pub use result::*;
 
 pub mod api;
-
-/// Re-export of the `poison` module for convenient access to poison policies.
-pub mod poison
-{
-    pub use crate::batteries::poison::*;
-}

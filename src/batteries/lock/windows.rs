@@ -19,14 +19,14 @@ use crate::{LockResult, LockStatus};
 /// This struct wraps a `windows_sys::Win32::System::Threading::SRWLOCK`.
 #[allow(missing_debug_implementations)]
 #[repr(transparent)]
-pub struct Os
+pub struct Srw
 {
     srwlock: windows_sys::Win32::System::Threading::SRWLOCK,
 }
 
-impl Os
+impl Srw
 {
-    /// Creates a new, unlocked `Os` lock.
+    /// Creates a new, unlocked `Srw` lock.
     ///
     /// `SRWLOCK` does not require explicit initialization, so this simply
     /// sets the internal pointer to null.
@@ -40,7 +40,7 @@ impl Os
     }
 }
 
-impl core::default::Default for Os
+impl core::default::Default for Srw
 {
     fn default() -> Self
     {
@@ -49,11 +49,11 @@ impl core::default::Default for Os
 }
 
 // SAFETY:
-// SRWLOCK is designed to be shared across threads.
-unsafe impl Send for Os {}
-unsafe impl Sync for Os {}
+// SRWLOCK is designed to be shared acrSrws threads.
+unsafe impl Send for Srw {}
+unsafe impl Sync for Srw {}
 
-unsafe impl LockPolicy for Os
+unsafe impl LockPolicy for Srw
 {
     type Error = core::convert::Infallible;
     type Meta = ();
@@ -108,9 +108,9 @@ unsafe impl LockPolicy for Os
     fn wake_all(&self) {}
 }
 
-impl NewLocked for Os
+impl NewLocked for Srw
 {
-    /// Creates a new `Os` lock and immediately acquires it for exclusive
+    /// Creates a new `Srw` lock and immediately acquires it for exclusive
     /// (writer) access using a blocking `AcquireSRWLockExclusive` call.
     fn new_locked() -> (Self::Meta, Self)
     {
@@ -124,7 +124,7 @@ impl NewLocked for Os
     }
 }
 
-unsafe impl SharingPolicy for Os
+unsafe impl SharingPolicy for Srw
 {
     /// Attempts to acquire the lock for shared (reader) access.
     ///

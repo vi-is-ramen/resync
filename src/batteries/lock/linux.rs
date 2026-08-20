@@ -44,9 +44,9 @@ const READERS_MASK: u32 = !(WRITER | WAITERS);
 /// for use as a standard mutex or a read-write lock.
 #[derive(Default, Debug)]
 #[repr(transparent)]
-pub struct Os(AtomicU32);
+pub struct Futex(AtomicU32);
 
-impl Os
+impl Futex
 {
     /// Creates a new, unlocked `Os` lock.
     ///
@@ -155,7 +155,7 @@ impl Os
     }
 }
 
-unsafe impl LockPolicy for Os
+unsafe impl LockPolicy for Futex
 {
     type Error = core::convert::Infallible;
     type Meta = ();
@@ -215,7 +215,7 @@ unsafe impl LockPolicy for Os
     }
 }
 
-impl NewLocked for Os
+impl NewLocked for Futex
 {
     /// Creates a new `Os` lock that is already acquired for exclusive access.
     ///
@@ -229,7 +229,7 @@ impl NewLocked for Os
     }
 }
 
-unsafe impl SharingPolicy for Os
+unsafe impl SharingPolicy for Futex
 {
     /// Attempts to acquire the lock for shared (reader) access.
     ///

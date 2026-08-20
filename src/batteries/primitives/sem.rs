@@ -17,11 +17,10 @@ use crate::traits::{LockPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 
-#[cfg(feature = "__lint")]
+#[cfg(any(feature = "__lint", feature = "std"))]
 use crate::lock::Atomic as DefaultLock;
-
-#[cfg(not(feature = "__lint"))]
-use crate::lock::Os as DefaultLock;
+#[cfg(not(any(feature = "__lint", feature = "std")))]
+use crate::lock::Futex as DefaultLock;
 
 /// A counting semaphore that limits concurrent access to a pool of resources.
 ///

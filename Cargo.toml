@@ -36,9 +36,13 @@ __lint = [ "std", "fake", "dev" ]
 
 [lints.rust]
 unexpected_cfgs = { level = 'allow', check-cfg = ['cfg(nightly)', 'cfg(stable)',
-    'cfg(beta)', 'cfg(dev)'] }
+    'cfg(beta)', 'cfg(dev)', 'cfg(docsrs)', 'cfg(std)', 'cfg(no_std)'] }
 missing_docs = 'deny'
 missing_debug_implementations = 'deny'
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 # [[bench]]
 # name = "mutex"

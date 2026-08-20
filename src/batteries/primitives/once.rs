@@ -19,11 +19,6 @@ use crate::{AcquireError, LockStatus, PoisonError};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU8, Ordering};
 
-#[cfg(feature = "__lint")]
-use crate::lock::Atomic as DefaultLock;
-#[cfg(not(feature = "__lint"))]
-use crate::lock::Os as DefaultLock;
-
 const EMPTY: u8 = 0;
 const INITIALIZING: u8 = 1;
 const DONE: u8 = 2;
@@ -37,8 +32,8 @@ const DONE: u8 = 2;
 #[allow(missing_debug_implementations)]
 pub struct Once<
     T,
-    L = DefaultLock,
-    R = crate::retry::Yield,
+    L = crate::lock::DefaultLock,
+    R = crate::retry::DefaultRetry,
     P = crate::poison::DefaultPoison,
 > where
     L: LockPolicy,

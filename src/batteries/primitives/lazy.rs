@@ -32,11 +32,6 @@ use core::mem::MaybeUninit;
 use core::ops::Deref;
 use core::sync::atomic::{AtomicU8, Ordering};
 
-#[cfg(feature = "__lint")]
-use crate::lock::Atomic as DefaultLock;
-#[cfg(not(feature = "__lint"))]
-use crate::lock::Os as DefaultLock;
-
 const UNTOUCHED: u8 = 0;
 const UNINIT: u8 = 1;
 const INITIALIZING: u8 = 2;
@@ -65,8 +60,8 @@ const DONE: u8 = 3;
 pub struct Lazy<
     T,
     F = fn() -> T,
-    L = DefaultLock,
-    R = crate::retry::Yield,
+    L = crate::lock::DefaultLock,
+    R = crate::retry::DefaultRetry,
     P = crate::poison::DefaultPoison,
 > where
     F: FnOnce() -> T,

@@ -6,9 +6,27 @@
 //! due to contention.
 
 mod busy;
+#[cfg(any(std, docsrs))]
 mod r#yield;
 
 #[cfg(feature = "fake")]
 pub use super::lock::{Fake, FakeError};
 pub use busy::*;
+#[cfg(any(std, docsrs))]
 pub use r#yield::*;
+
+/// Default retry policy for current environment.
+///
+/// As `std` feature enabled, it is `Yield`.
+#[cfg(all(std, not(docsrs)))]
+pub type DefaultRetry = Yield;
+
+/// Default retry policy for current environment.
+///
+/// As `std` feature disabled, it is `Busy`.
+#[cfg(all(no_std, not(docsrs)))]
+pub type DefaultRetry = Busy;
+
+/// Default retry policy for current environment.
+#[cfg(docsrs)]
+pub type DefaultRetry = Fake;
