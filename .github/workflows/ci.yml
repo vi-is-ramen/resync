@@ -71,8 +71,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
-        if:
-            branches: [main]
+        if: github.ref == 'refs/heads/main'
         timeout-minutes: 15
         steps:
             -   uses: actions/checkout@v7
