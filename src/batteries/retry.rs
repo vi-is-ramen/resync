@@ -9,8 +9,8 @@ mod busy;
 #[cfg(any(std, docsrs))]
 mod r#yield;
 
-#[cfg(feature = "fake")]
-pub use super::lock::{Fake, FakeError};
+#[cfg(any(docsrs, feature = "fake"))]
+pub use super::fake::*;
 pub use busy::*;
 #[cfg(any(std, docsrs))]
 pub use r#yield::*;

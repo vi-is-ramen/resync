@@ -22,10 +22,6 @@ inc! {
     nested,
     shield,
 
-    // mocks only
-    #[cfg(any(docsrs, feature = "fake"))]
-    fake,
-
     // experimental (so `dev`)
     #[cfg(all(unix, std, dev))]
     fs,
@@ -46,6 +42,9 @@ inc! {
     #[cfg(all(std, target_os = "macos"))]
     macos,
 }
+
+#[cfg(any(docsrs, feature = "fake"))]
+pub use super::fake::*;
 
 /// Default lock implementation for current environment.
 ///
@@ -76,4 +75,4 @@ pub type DefaultLock = Atomic;
 /// It becomes futex on Linux, SRW on Windows and rwlock_t on macOS.
 /// If used in bare-metal environments (no_std), it becomes Atomic.
 #[cfg(docsrs)]
-pub type DefaultLock = Fake;
+pub type DefaultLock = Atomic;

@@ -15,6 +15,7 @@
 //!   [`Mutex`](crate::Mutex) that combine locks, retry policies, and poison
 //!   policies.
 
+pub(crate) mod fake;
 pub mod lock;
 pub mod poison;
 pub mod primitives;

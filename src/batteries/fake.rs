@@ -1,12 +1,15 @@
 //! A fake lock and retry policy implementation for testing purposes.
 //!
 //! This module provides [`Fake`], a mock implementation of [`LockPolicy`],
-//! [`SharingPolicy`], and [`RetryPolicy`]. It always succeeds in acquiring
-//! the lock and never blocks or yields, making it useful for unit testing
-//! higher-level primitives without dealing with actual concurrency or
+//! [`SharingPolicy`], [`RetryPolicy`], and [`PoisonPolicy`]. It always succeeds
+//! in acquiring the lock and never blocks or yields, making it useful for unit
+//! testing higher-level primitives without dealing with actual concurrency or
 //! contention.
+
 use crate::RetryResult;
-use crate::traits::{LockPolicy, NewLocked, RetryPolicy, SharingPolicy};
+use crate::traits::{
+    LockPolicy, NewLocked, PoisonPolicy, RetryPolicy, SharingPolicy,
+};
 
 /// A fake lock and retry policy that always succeeds.
 ///
@@ -20,7 +23,8 @@ pub struct Fake;
 ///
 /// Since [`Fake`] never actually fails, this error type is theoretically
 /// unreachable in normal operation. It exists solely to satisfy the
-/// associated `Error` type requirements of the policy traits.
+/// associated `Display` type requirements of the policy traits.
+// NOTE: Infallible?
 #[derive(Debug, Default)]
 pub struct FakeError;
 
@@ -32,9 +36,8 @@ impl core::fmt::Display for FakeError
     }
 }
 
-impl core::error::Error for FakeError {}
-
 unsafe impl core::marker::Sync for Fake {}
+impl core::error::Error for FakeError {}
 
 unsafe impl LockPolicy for Fake
 {
@@ -101,4 +104,16 @@ impl RetryPolicy for Fake
     {
         RetryResult::Ok(())
     }
+}
+
+impl PoisonPolicy for Fake
+{
+    unsafe fn clear_poison(&self) {}
+
+    fn is_poisoned(&self) -> bool
+    {
+        false
+    }
+
+    fn on_drop(&self) {}
 }
