@@ -75,4 +75,4 @@ pub type DefaultLock = Atomic;
 /// It becomes futex on Linux, SRW on Windows and rwlock_t on macOS.
 /// If used in bare-metal environments (no_std), it becomes Atomic.
 #[cfg(docsrs)]
-pub type DefaultLock = Atomic;
+pub type DefaultLock = Fake;
