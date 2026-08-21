@@ -1,5 +1,6 @@
 target/
 Cargo.lock
+!target/criterion
 
 testing/util/target/
 testing/util/Cargo.lock
