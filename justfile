@@ -23,3 +23,6 @@ pre-commit: check test
 
 docs:
     @RUSTDOCFLAGS="--cfg docsrs" cargo doc --no-deps --all-features --open
+
+bench:
+    @cargo bench --features "std dev"

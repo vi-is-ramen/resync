@@ -1,6 +1,6 @@
 [package]
 name = "resync"
-version = "0.14.0"
+version = "0.14.1"
 edition = "2024"
 rust-version = "1.98.0"
 authors = ["Ivan Chetchasov <vi.is.chapmann@gmail.com>"]
@@ -44,17 +44,22 @@ missing_debug_implementations = 'deny'
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# [[bench]]
-# name = "mutex"
-# harness = false
-# required-features = []
+[[bench]]
+name = "mutex"
+harness = false
+required-features = ["std"]
 
-# [[bench]]
-# name = "rwlock"
-# harness = false
-# required-features = []
+[[bench]]
+name = "sharex"
+harness = false
+required-features = ["std"]
 
-# [[bench]]
-# name = "barrier"
-# harness = false
-# required-features = []
+[[bench]]
+name = "once_lazy"
+harness = false
+required-features = ["std"]
+
+[[bench]]
+name = "flow"
+harness = false
+required-features = ["std", "dev"]

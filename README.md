@@ -32,6 +32,12 @@
 >   For *contributors* and *maintainers*. Covers the repository layout, CI/CD
 >   pipelines, feature lifecycle, and how to safely evolve the API.
 
+> **BENCHMARKS**
+>
+> Benchmarks can be found in
+> ["Benchmarks" topic](https://github.com/vi-is-ramen/resync/discussions/5) in
+> GitHub Discussions.
+
 A LEGO-like library of synchronization primitives for Rust.
 
 Resync provides composable building blocks for implementing locks and spin loops.
