@@ -1,7 +1,7 @@
 //! Characterization: poison policies (NoPoison, StdPoison, DefaultPoison).
 
+use resync::api::PoisonPolicy;
 use resync::poison::NoPoison;
-use resync::traits::PoisonPolicy;
 
 #[test]
 fn no_poison_never_poisons()
@@ -37,8 +37,8 @@ fn default_poison_is_usable()
 #[cfg(feature = "std")]
 mod std_poison
 {
+    use resync::api::PoisonPolicy;
     use resync::poison::StdPoison;
-    use resync::traits::PoisonPolicy;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::Arc;
 

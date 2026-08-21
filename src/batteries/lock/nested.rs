@@ -12,7 +12,7 @@
 //!
 //! ```rust
 //! # use resync::lock::{Atomic, Nested};
-//! # use resync::traits::LockPolicy;
+//! # use resync::api::LockPolicy;
 //! # use resync::LockStatus;
 //! type SafeNestedLock = Nested<Atomic, Atomic>;
 //!
@@ -27,7 +27,7 @@
 //! // Releases L2, then L1
 //! unsafe { lock.free(&((), ())) };
 //! ```
-use crate::traits::{LockPolicy, NewLocked};
+use crate::api::{LockPolicy, NewLocked};
 use crate::{LockResult, LockStatus};
 
 /// A lock composed of two inner locks.

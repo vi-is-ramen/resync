@@ -1,4 +1,4 @@
-use crate::traits::PoisonPolicy;
+use crate::api::PoisonPolicy;
 
 /// A poison policy that never poisons the lock.
 ///

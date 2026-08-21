@@ -15,6 +15,7 @@
 //!   [`Mutex`](crate::Mutex) that combine locks, retry policies, and poison
 //!   policies.
 
+#[cfg(feature = "fake")]
 pub(crate) mod fake;
 pub mod lock;
 pub mod poison;

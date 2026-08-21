@@ -1,4 +1,4 @@
-use crate::traits::{LockPolicy, PoisonPolicy};
+use crate::api::{LockPolicy, PoisonPolicy};
 use core::ops::{Deref, DerefMut};
 
 /// An exclusive RAII guard that provides mutable access to the protected data.

@@ -1,4 +1,4 @@
-use crate::traits::PoisonPolicy;
+use crate::api::PoisonPolicy;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 /// A poison policy that uses `std::thread::panicking()` to detect panics.

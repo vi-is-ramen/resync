@@ -2,8 +2,8 @@
 
 use core::convert::Infallible;
 use resync::LockStatus;
+use resync::api::{LockPolicy, NewLocked};
 use resync::lock::{Atomic, Nested, NestedError};
-use resync::traits::{LockPolicy, NewLocked};
 
 #[derive(Debug)]
 struct TestErr;

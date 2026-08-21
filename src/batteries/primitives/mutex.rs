@@ -1,6 +1,6 @@
 //! A mutual exclusion primitive that composes a lock policy and a retry policy.
 use super::ExGuard;
-use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
+use crate::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError, TryLockError};
 use core::cell::UnsafeCell;
 

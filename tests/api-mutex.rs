@@ -1,9 +1,9 @@
 //! Characterization: Mutex primitive + ExGuard (API surface + behavior).
 
+use resync::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use resync::lock::Atomic;
 use resync::poison::NoPoison;
 use resync::retry::Busy;
-use resync::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
 use resync::{ExGuard, Mutex, TryLockError};
 
 type TestMutex = Mutex<u32, Atomic, Busy, NoPoison>;

@@ -17,7 +17,7 @@
 //! (reader) access while minimizing system call overhead. Threads only enter
 //! the kernel via `futex_wait` when they fail to acquire the lock after a
 //! certain number of spin iterations (`DEFAULT_EPSILON`).
-use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
+use crate::api::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 use core::sync::atomic::{AtomicU32, Ordering};

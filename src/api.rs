@@ -20,10 +20,11 @@
 
 pub(crate) mod guard;
 pub(crate) mod mutex;
+pub mod policy;
 pub(crate) mod sharex;
 
 // Re-export core traits so users can access them via `resync::api::*`
-pub use crate::traits::*;
 pub use guard::*;
 pub use mutex::*;
+pub use policy::*;
 pub use sharex::*;

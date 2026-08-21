@@ -1,7 +1,7 @@
 //! A shared RAII guard that provides shared (read) access to the protected
 //! data.
 
-use crate::traits::{LockPolicy, PoisonPolicy, SharingPolicy};
+use crate::api::{LockPolicy, PoisonPolicy, SharingPolicy};
 use core::ops::Deref;
 
 /// A shared RAII guard that provides shared (read) access to the protected

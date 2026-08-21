@@ -3,8 +3,8 @@
 
 use core::convert::Infallible;
 use resync::LockStatus;
+use resync::api::{LockPolicy, NewLocked, SharingPolicy};
 use resync::lock::Atomic;
-use resync::traits::{LockPolicy, NewLocked, SharingPolicy};
 
 // Compile-time: associated types are pinned to Infallible / ().
 #[allow(dead_code)]

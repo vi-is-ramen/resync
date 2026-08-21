@@ -1,8 +1,8 @@
 //! Characterization: lock::Shield writer-fairness wrapper and ShieldError.
 
 use resync::LockStatus;
+use resync::api::{LockPolicy, NewLocked, SharingPolicy};
 use resync::lock::{Atomic, Shield, ShieldError};
-use resync::traits::{LockPolicy, NewLocked, SharingPolicy};
 
 #[derive(Debug)]
 struct TestErr;

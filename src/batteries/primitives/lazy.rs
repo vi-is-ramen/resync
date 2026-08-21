@@ -25,7 +25,7 @@
 //! }
 //! ```
 use crate::LockStatus;
-use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
+use crate::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 use core::ops::Deref;

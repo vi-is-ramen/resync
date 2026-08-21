@@ -20,7 +20,7 @@
 //! # Examples
 //!
 //! ```rust
-//! # use resync::traits::{LockPolicy, NewLocked};
+//! # use resync::api::{LockPolicy, NewLocked};
 //! # use resync::lock::Atomic;
 //! # use resync::LockStatus;
 //!
@@ -33,7 +33,7 @@
 //! // Release it using the returned metadata.
 //! unsafe { lock.free(&meta) };
 //! ```
-use crate::traits::LockPolicy;
+use super::LockPolicy;
 
 /// A lock policy that can be initialized in the **locked** (acquired) state.
 ///

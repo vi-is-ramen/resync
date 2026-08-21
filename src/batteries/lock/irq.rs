@@ -9,7 +9,7 @@
 use core::convert::Infallible;
 
 use crate::LockStatus;
-use crate::traits::{LockPolicy, SharingPolicy};
+use crate::api::{LockPolicy, SharingPolicy};
 
 /// Disables IRQs and returns a boolean indicating whether interrupts were
 /// previously enabled.

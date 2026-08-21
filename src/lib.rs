@@ -55,7 +55,6 @@
 extern crate libc;
 
 pub(crate) mod batteries;
-pub mod traits;
 #[cfg(feature = "std")]
 pub(crate) mod util;
 

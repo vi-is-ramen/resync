@@ -8,7 +8,7 @@ use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 
-use crate::traits::{LockPolicy, NewLocked};
+use crate::api::{LockPolicy, NewLocked};
 use crate::{LockResult, LockStatus};
 
 /// A lock policy that uses `flock` on a file.

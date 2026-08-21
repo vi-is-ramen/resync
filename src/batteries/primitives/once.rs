@@ -14,7 +14,7 @@
 //! will immediately return an [`AcquireError::Poisoned`] error, preventing
 //! threads from hanging or re-executing a faulty initialization.
 
-use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
+use crate::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU8, Ordering};

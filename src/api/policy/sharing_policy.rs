@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use crate::traits::LockPolicy;
+use super::LockPolicy;
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 
@@ -92,10 +92,10 @@ use core::convert::Infallible;
 /// ```rust
 /// # use core::convert::Infallible;
 /// # use core::sync::atomic::{AtomicUsize, Ordering};
-/// # use resync::traits::LockPolicy;
+/// # use resync::api::LockPolicy;
 /// # use resync::LockResult;
 /// # use resync::LockStatus;
-/// # use resync::traits::SharingPolicy;
+/// # use resync::api::SharingPolicy;
 /// #[repr(transparent)]
 /// struct RwSpinPolicy(AtomicUsize);
 ///

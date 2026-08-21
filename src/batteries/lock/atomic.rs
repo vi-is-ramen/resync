@@ -15,7 +15,7 @@
 //! Because it relies purely on atomic instructions, it is highly portable but
 //! does not support thread parking. Threads waiting for the lock must rely on
 //! a OS-driven lock.
-use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
+use crate::api::{LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -32,7 +32,7 @@ const WRITER: usize = usize::MAX;
 /// # Examples
 ///
 /// ```rust
-/// # use resync::traits::{LockPolicy, SharingPolicy};
+/// # use resync::api::{LockPolicy, SharingPolicy};
 /// # use resync::lock::Atomic;
 /// # use resync::LockStatus;
 /// let lock = Atomic::new();

@@ -12,7 +12,7 @@
 //! By default, a newly created `Gate` is in the **closed** state to prevent
 //! threads from passing through before the barrier is explicitly opened.
 
-use crate::traits::{NewLocked, RetryPolicy, SharingPolicy};
+use crate::api::{NewLocked, RetryPolicy, SharingPolicy};
 use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};

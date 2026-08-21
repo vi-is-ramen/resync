@@ -7,7 +7,7 @@
 //! contention.
 
 use crate::RetryResult;
-use crate::traits::{
+use crate::api::{
     LockPolicy, NewLocked, PoisonPolicy, RetryPolicy, SharingPolicy,
 };
 

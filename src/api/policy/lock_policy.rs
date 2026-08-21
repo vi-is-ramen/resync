@@ -62,7 +62,7 @@ use core::convert::Infallible;
 ///
 /// ```rust
 /// # use core::convert::Infallible;
-/// # use resync::traits::LockPolicy;
+/// # use resync::api::LockPolicy;
 /// # use resync::LockResult;
 /// # use resync::LockStatus;
 /// # use core::sync::atomic::{AtomicBool, Ordering};

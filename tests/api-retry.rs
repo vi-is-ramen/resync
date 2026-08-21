@@ -1,8 +1,8 @@
 //! Characterization: retry policies (Busy, Yield, DefaultRetry).
 
 use core::convert::Infallible;
+use resync::api::RetryPolicy;
 use resync::retry::Busy;
-use resync::traits::RetryPolicy;
 
 // Compile-time: Busy never aborts (Error = Infallible).
 #[allow(dead_code)]

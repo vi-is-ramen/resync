@@ -38,7 +38,7 @@
 //! }
 //! ```
 
-use crate::traits::RetryPolicy;
+use crate::api::RetryPolicy;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// The result of a [`Barrier::wait`] operation.

@@ -13,7 +13,7 @@
 //! contention occurs. This makes it fully compatible with `#![no_std]`
 //! environments when paired with `lock::Atomic` and `retry::Busy`.
 
-use crate::traits::{LockPolicy, RetryPolicy};
+use crate::api::{LockPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, TryLockError};
 use core::cell::UnsafeCell;
 

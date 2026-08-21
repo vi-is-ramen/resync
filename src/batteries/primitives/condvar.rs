@@ -24,7 +24,7 @@
 //! [`AcquireError::Poisoned`] error, allowing the caller to handle the
 //! inconsistent state.
 
-use crate::traits::{LockPolicy, PoisonPolicy, RetryPolicy};
+use crate::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, ExGuard, Mutex};
 use std::collections::VecDeque;
 use std::thread::{self, Thread};

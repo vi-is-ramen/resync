@@ -11,7 +11,7 @@
 use core::convert::Infallible;
 
 use crate::RetryResult;
-use crate::traits::RetryPolicy;
+use crate::api::RetryPolicy;
 
 /// A spin strategy that yields the current thread to the OS scheduler on every
 /// retry.

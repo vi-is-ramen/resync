@@ -1,9 +1,9 @@
 //! Characterization: Sharex (read-write) primitive + ShGuard/ExGuard.
 
+use resync::api::{PoisonPolicy, RetryPolicy, SharingPolicy};
 use resync::lock::Atomic;
 use resync::poison::NoPoison;
 use resync::retry::Busy;
-use resync::traits::{PoisonPolicy, RetryPolicy, SharingPolicy};
 use resync::{ExGuard, ShGuard, Sharex, TryLockError};
 
 type TestSharex = Sharex<u32, Atomic, Busy, NoPoison>;

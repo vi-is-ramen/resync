@@ -11,7 +11,7 @@
 //! receives [`crate::LockStatus::Fail`], forcing it to yield via its retry
 //! policy. This gives the waiting writer a fair chance to acquire the lock
 //! once the current readers release it.
-use crate::traits::{LockPolicy, NewLocked, SharingPolicy};
+use crate::api::{LockPolicy, NewLocked, SharingPolicy};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A sharing-yielding (shield) lock wrapper.
