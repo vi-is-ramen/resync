@@ -14,7 +14,7 @@ keywords = ["mutex", "synchronization", "no_std", "lock", "thread"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
-reta = "=0.1.1"
+# reta = "=0.1.1"
 # lock_api = "0.4"
 windows-sys = { version = "0.61", optional = true, features = [
     "Win32_System_Threading",

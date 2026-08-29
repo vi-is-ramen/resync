@@ -74,7 +74,7 @@ of the box:
 | :--- | :--- | :--- |
 | **Primitives** | `Mutex`, `Sharex` | Standard exclusive and read-write locks with poisoning support. |
 | **Flow Control** | `Gate`, `Barrier`, `Condvar`, `Semaphore` | Controllable barriers, event waiting, and resource pooling. |
-| **Lock Backends** | `Atomic`, `Os`, `Fs`, `Irq` | Pure spinlocks, OS futexes/SRW, file locks, and IRQ-disabling locks. |
+| **Lock Backends** | `Atomic`, `Futex`/`Srw`/`Rwl`, `Fs`, `Irq` | Pure spinlocks, OS futexes/SRW, file locks, and IRQ-disabling locks. |
 | **Compositors** | `Nested`, `Shield` | Deadlock prevention via strict ordering, and writer-fairness wrappers. |
 | **Retry Strategies** | `Busy`, `Yield` | CPU pause instructions (`spin_loop`) or OS thread yielding. |
 

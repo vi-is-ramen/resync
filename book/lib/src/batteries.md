@@ -29,12 +29,12 @@ if the initialization closure panics.
 
 - **`Atomic`**: A pure, portable spinlock based on `AtomicUsize`. Ideal for
 `#![no_std]` and extremely short critical sections.
-- **`Os`**: OS-specific high-performance locks. Uses `futex` on Linux,
-`pthread_rwlock_t` on macOS, and `SRWLOCK` on Windows. Automatically parks
-threads in the kernel on contention.
-- **`Fs`**: A filesystem-based advisory lock using `flock(2)`. Useful for
+- **`Futex/std`/`Rwl/std`/`Srw/std`**: OS-specific high-performance locks. Uses
+`futex` on Linux, `pthread_rwlock_t` on macOS, and `SRWLOCK` on Windows.
+Automatically parks threads in the kernel on contention.
+- **`Fs/dev+unix`**: A filesystem-based advisory lock using `flock(2)`. Useful for
 cross-process synchronization.
-- **`Irq`**: A bare-metal lock that disables hardware interrupts (IRQs) upon
+- **`Irq/dev`**: A bare-metal lock that disables hardware interrupts (IRQs) upon
 acquisition. Essential for kernel development to prevent interrupt-handler
 deadlocks.
 - **`Nested<L1, L2>`**: A composite lock that strictly enforces acquisition
@@ -48,5 +48,5 @@ new readers when a writer is waiting.
 
 - **`Busy`**: Executes architecture-specific CPU pause instructions
 (`core::hint::spin_loop()`).
-- **`Yield`**: Cooperatively yields the current thread to the OS scheduler
+- **`Yield/std`**: Cooperatively yields the current thread to the OS scheduler
 (`std::thread::yield_now()`).
