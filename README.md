@@ -175,4 +175,6 @@ Wait, I also have Miri job! It only runs on ubuntu-latest to make pipeline a bit
 faster, so it only adds 120 test runs.
 
 Total: 4440 tests. Looks impressive, actually.
+
+UPD: number was increased.
 -->

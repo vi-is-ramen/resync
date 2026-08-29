@@ -54,8 +54,11 @@ mod new_locked;
 mod poison_policy;
 mod retry_policy;
 mod sharing_policy;
+mod thread_id;
+
 pub use lock_policy::LockPolicy;
 pub use new_locked::NewLocked;
 pub use poison_policy::PoisonPolicy;
 pub use retry_policy::RetryPolicy;
 pub use sharing_policy::SharingPolicy;
+pub use thread_id::StableThreadId;

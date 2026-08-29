@@ -21,3 +21,4 @@ pub mod lock;
 pub mod poison;
 pub mod primitives;
 pub mod retry;
+pub mod thread_id;
