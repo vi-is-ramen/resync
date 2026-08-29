@@ -29,3 +29,7 @@ These structs bind a `LockPolicy`, a `RetryPolicy`, and the protected data (`T`)
 together, providing a safe, RAII-based interface (`ExGuard` and `ShGuard`).
 They also manage the **Lock Poisoning** state, automatically detecting thread
 panics (when `std` is enabled) to protect data integrity.
+
+## `StableThreadId`: A Stable Thread Identifier
+Allows `Retaint` lock sttrategy to track thread identity across lock
+acquisitions.
