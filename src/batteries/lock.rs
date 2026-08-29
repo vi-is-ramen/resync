@@ -30,6 +30,10 @@ inc! {
     #[cfg(dev)]
     irq,
 
+    // experimental
+    #[cfg(dev)]
+    retaint,
+
     // OS-dependent
     #[cfg(all(std, target_os = "linux"))]
     linux,

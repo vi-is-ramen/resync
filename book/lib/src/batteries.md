@@ -43,6 +43,8 @@ compile time.
 - **`Shield<L>`**: A wrapper that prevents writer starvation in read-write
 locks by yielding readers (**sh**ared accessors y**ield**) the resource from
 new readers when a writer is waiting.
+- **`Retaint<L>`**: A reentrant lock wrapper that allows the same thread to
+acquire the lock multiple times without deadlocking.
 
 ## Retry Backends (`RetryPolicy`)
 
