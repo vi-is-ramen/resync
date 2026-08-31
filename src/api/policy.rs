@@ -49,6 +49,7 @@
 //! # Examples
 //!
 //! See the documentation of each trait for concrete usage.
+mod force_unlock;
 mod lock_policy;
 mod new_locked;
 mod poison_policy;
@@ -56,6 +57,7 @@ mod retry_policy;
 mod sharing_policy;
 mod thread_id;
 
+pub use force_unlock::ForceUnlock;
 pub use lock_policy::LockPolicy;
 pub use new_locked::NewLocked;
 pub use poison_policy::PoisonPolicy;

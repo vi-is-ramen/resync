@@ -15,7 +15,7 @@
 //! Because it relies purely on atomic instructions, it is highly portable but
 //! does not support thread parking. Threads waiting for the lock must rely on
 //! a OS-driven lock.
-use crate::api::{LockPolicy, NewLocked, SharingPolicy};
+use crate::api::{ForceUnlock, LockPolicy, NewLocked, SharingPolicy};
 use crate::{LockResult, LockStatus};
 use core::convert::Infallible;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -177,5 +177,13 @@ unsafe impl SharingPolicy for Atomic
     fn free_share(&self, _: &Self::Meta)
     {
         self.0.fetch_sub(1, Ordering::Release);
+    }
+}
+
+impl ForceUnlock for Atomic
+{
+    unsafe fn force_unlock(&self)
+    {
+        self.0.store(0, Ordering::Release);
     }
 }

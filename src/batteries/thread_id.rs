@@ -9,6 +9,7 @@
 //! but does **not** implement the trait; you must supply your own
 //! implementation.
 
+#[cfg(std)]
 use crate::api::StableThreadId;
 
 /// Default thread identifier provider.

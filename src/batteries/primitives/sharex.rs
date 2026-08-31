@@ -1,4 +1,6 @@
 //! A shareable-exclusive (read-write) lock primitive.
+#[cfg(dev)]
+use crate::api::ForceUnlock;
 use crate::api::{PoisonPolicy, RetryPolicy, SharingPolicy};
 use crate::{
     AcquireError, ExGuard, LockStatus, PoisonError, ShGuard, TryLockError,
@@ -129,6 +131,21 @@ where
             lock:     L::default(),
             retry:    R::default(),
             poisoned: P::default(),
+        }
+    }
+}
+
+#[cfg(dev)]
+impl<T, L, R, P> ForceUnlock for Sharex<T, L, R, P>
+where
+    L: SharingPolicy + ForceUnlock,
+    R: RetryPolicy,
+    P: PoisonPolicy,
+{
+    unsafe fn force_unlock(&self)
+    {
+        unsafe {
+            self.lock.force_unlock();
         }
     }
 }

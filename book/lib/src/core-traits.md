@@ -33,3 +33,8 @@ panics (when `std` is enabled) to protect data integrity.
 ## `StableThreadId`: A Stable Thread Identifier
 Allows `Retaint` lock sttrategy to track thread identity across lock
 acquisitions.
+
+## `ForceUnlock`: The Force-Unlock Ability
+Allows a lock to be released forcibly. This is useful in panic handlers or
+critical sections where the lock must be released even if the thread is
+panicking.

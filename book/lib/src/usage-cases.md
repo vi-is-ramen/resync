@@ -8,10 +8,10 @@ the `Shield` battery, which wraps any `SharingPolicy` and blocks new readers
 the moment a writer starts waiting.
 
 ```rust
-use resync::{Sharex, lock::{Os, Shield}, retry::Yield};
+use resync::{Sharex, lock::{Futex, Shield}, retry::Yield};
 
 // Define a fair RW lock type
-type FairRwLock<T> = Sharex<T, Shield<Os>, Yield>;
+type FairRwLock<T> = Sharex<T, Shield<Futex>, Yield>;
 
 let lock = FairRwLock::new(vec![1, 2, 3]);
 
@@ -34,13 +34,13 @@ channels introduces allocation overhead.
 through before the setup is done (preventing TOCTOU races).
 
 ```rust
-use resync::{Gate, lock::Os, retry::Yield};
+use resync::{Gate, lock::Futex, retry::Yield};
 use std::sync::Arc;
 use std::thread;
 
 fn main() {
     // Gate is CLOSED by default.
-    let gate = Arc::new(Gate::<Os, Yield>::new());
+    let gate = Arc::new(Gate::<Futex, Yield>::new());
     
     let workers: Vec<_> = (0..8).map(|id| {
         let g = Arc::clone(&gate);
@@ -99,7 +99,7 @@ reason of failure, including timeouts from custom `RetryPolicy`
 implementations.
 
 ```rust
-use resync::{Mutex, AcquireError, lock::Os, retry::Yield};
+use resync::{Mutex, AcquireError, lock::Futex, retry::Yield};
 
 let mutex = Mutex::<i32>::new(42);
 

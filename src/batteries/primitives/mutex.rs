@@ -1,5 +1,7 @@
 //! A mutual exclusion primitive that composes a lock policy and a retry policy.
 use super::ExGuard;
+#[cfg(dev)]
+use crate::api::ForceUnlock;
 use crate::api::{LockPolicy, PoisonPolicy, RetryPolicy};
 use crate::{AcquireError, LockStatus, PoisonError, TryLockError};
 use core::cell::UnsafeCell;
@@ -130,6 +132,21 @@ where
             lock:     L::default(),
             retry:    R::default(),
             poisoned: P::default(),
+        }
+    }
+}
+
+#[cfg(dev)]
+impl<T, L, R, P> ForceUnlock for Mutex<T, L, R, P>
+where
+    L: LockPolicy + ForceUnlock,
+    R: RetryPolicy,
+    P: PoisonPolicy,
+{
+    unsafe fn force_unlock(&self)
+    {
+        unsafe {
+            self.lock.force_unlock();
         }
     }
 }

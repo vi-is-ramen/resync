@@ -11,7 +11,7 @@
 //! receives [`crate::LockStatus::Fail`], forcing it to yield via its retry
 //! policy. This gives the waiting writer a fair chance to acquire the lock
 //! once the current readers release it.
-use crate::api::{LockPolicy, NewLocked, SharingPolicy};
+use crate::api::{ForceUnlock, LockPolicy, NewLocked, SharingPolicy};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A sharing-yielding (shield) lock wrapper.
@@ -164,7 +164,12 @@ where L: LockPolicy
 
     fn abort(&self)
     {
-        self.pending.fetch_sub(1, Ordering::Acquire);
+        // Avoid wrapping around to 0 on underflow
+        let _ = self.pending.try_update(
+            Ordering::Release,
+            Ordering::Relaxed,
+            |x| if x > 0 { Some(x - 1) } else { None },
+        );
     }
 }
 
@@ -226,5 +231,17 @@ where L: SharingPolicy
     fn wake_readers(&self)
     {
         self.inner.wake_readers();
+    }
+}
+
+impl<L> ForceUnlock for Shield<L>
+where L: LockPolicy + ForceUnlock
+{
+    unsafe fn force_unlock(&self)
+    {
+        unsafe {
+            self.inner.force_unlock();
+        }
+        self.pending.store(0, Ordering::Release);
     }
 }
