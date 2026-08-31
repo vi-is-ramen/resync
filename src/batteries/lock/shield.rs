@@ -164,7 +164,12 @@ where L: LockPolicy
 
     fn abort(&self)
     {
-        self.pending.fetch_sub(1, Ordering::Acquire);
+        // Avoid wrapping around to 0 on underflow
+        let _ = self.pending.try_update(
+            Ordering::Release,
+            Ordering::Relaxed,
+            |x| if x > 0 { Some(x - 1) } else { None },
+        );
     }
 }
 
