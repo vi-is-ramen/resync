@@ -30,7 +30,7 @@
 //! [`StableThreadId`]: crate::api::StableThreadId
 //! [`DefaultThreadId`]: crate::thread_id::DefaultThreadId
 
-use crate::api::{LockPolicy, SharingPolicy, StableThreadId};
+use crate::api::{ForceUnlock, LockPolicy, SharingPolicy, StableThreadId};
 use crate::thread_id::DefaultThreadId;
 use crate::{LockResult, LockStatus};
 use core::cell::UnsafeCell;
@@ -261,5 +261,16 @@ where
     fn wake_readers(&self)
     {
         self.inner.wake_readers()
+    }
+}
+
+impl<L> ForceUnlock for Retaint<L>
+where L: LockPolicy + ForceUnlock
+{
+    unsafe fn force_unlock(&self)
+    {
+        unsafe {
+            self.inner.force_unlock();
+        }
     }
 }

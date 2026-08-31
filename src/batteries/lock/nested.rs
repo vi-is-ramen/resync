@@ -27,7 +27,7 @@
 //! // Releases L2, then L1
 //! unsafe { lock.free(&((), ())) };
 //! ```
-use crate::api::{LockPolicy, NewLocked};
+use crate::api::{ForceUnlock, LockPolicy, NewLocked};
 use crate::{LockResult, LockStatus};
 
 /// A lock composed of two inner locks.
@@ -215,5 +215,20 @@ where
         let (m1, l1) = L1::new_locked();
         let (m2, l2) = L2::new_locked();
         ((m1, m2), Self { l1, l2 })
+    }
+}
+
+impl<L1, L2> ForceUnlock for Nested<L1, L2>
+where
+    L1: LockPolicy + ForceUnlock,
+    L2: LockPolicy + ForceUnlock,
+{
+    unsafe fn force_unlock(&self)
+    {
+        unsafe {
+            // inner first, outer second
+            self.l2.force_unlock();
+            self.l1.force_unlock();
+        }
     }
 }
