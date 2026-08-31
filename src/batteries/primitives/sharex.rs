@@ -133,6 +133,7 @@ where
     }
 }
 
+#[cfg(dev)]
 impl<T, L, R, P> ForceUnlock for Sharex<T, L, R, P>
 where
     L: SharingPolicy + ForceUnlock,

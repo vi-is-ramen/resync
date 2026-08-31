@@ -134,6 +134,7 @@ where
     }
 }
 
+#[cfg(dev)]
 impl<T, L, R, P> ForceUnlock for Mutex<T, L, R, P>
 where
     L: LockPolicy + ForceUnlock,
