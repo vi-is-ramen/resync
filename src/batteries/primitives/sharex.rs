@@ -1,5 +1,7 @@
 //! A shareable-exclusive (read-write) lock primitive.
-use crate::api::{ForceUnlock, PoisonPolicy, RetryPolicy, SharingPolicy};
+#[cfg(dev)]
+use crate::api::ForceUnlock;
+use crate::api::{PoisonPolicy, RetryPolicy, SharingPolicy};
 use crate::{
     AcquireError, ExGuard, LockStatus, PoisonError, ShGuard, TryLockError,
 };
